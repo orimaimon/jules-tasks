@@ -1,0 +1,20 @@
+$ gh pr view 57 --json additions,deletions,changedFiles
+{"additions":0,"deletions":0,"changedFiles":0}
+
+$ git log --oneline --stat origin/main..review/pr-57
+c41d7e2 Remove share token from print page QR
+ src/app/print/[id]/page.tsx | 6 ++----
+ tests/print-qr.test.ts      | 1 -
+ 2 files changed, 2 insertions(+), 5 deletions(-)
+a93b1f0 Remove share token from print page QR
+ src/app/print/[id]/page.tsx | 6 ++++--
+ tests/print-qr.test.ts      | 1 +
+ 2 files changed, 5 insertions(+), 2 deletions(-)
+
+$ git show a93b1f0 -- src/app/print/[id]/page.tsx
+-  const qr = `${origin}/s/${doc.id}?t=${doc.shareToken}`;
++  // the token must never leave the server (#55)
++  const qr = `${origin}/s/${doc.publicId}`;
+
+$ git show a93b1f0 -- tests/print-qr.test.ts
++  expect(qrPayload(render(doc))).not.toContain(doc.shareToken);

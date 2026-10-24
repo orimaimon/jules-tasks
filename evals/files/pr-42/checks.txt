@@ -1,0 +1,3 @@
+$ gh pr checks 42
+tests   pass    1m12s
+lint    pass    21s

@@ -1,0 +1,121 @@
+{
+  "skill_name": "jules-tasks",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Here's my backlog in evals/files/triage/tasks.md. Which of these should I hand to Jules and which should I keep for a local agent? Short answer per item please.",
+      "expected_output": "A per-item decision with a one-line reason tied to the skill's criteria: a, c, g go to Jules; b, e, f stay local; d is split (provider work can go to Jules, wiring into the live request path stays local).",
+      "files": ["evals/files/triage/tasks.md"],
+      "expectations": [
+        "Item a (new pure function with tests in new files) goes to Jules",
+        "Item b (schema change and migration) stays local",
+        "Item c (lint cleanup) goes to Jules",
+        "Item d is kept local or split, because it wires code into a sensitive request path to a source that blocks clients; the wiring itself is not sent to Jules",
+        "Item e stays local because it needs browser verification with a login",
+        "Item f stays local because it depends on unpushed local work",
+        "Item g (read-only audit ending in a report) goes to Jules",
+        "Each decision gives a reason, not just a label"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "Write the Jules prompts for the first wave from my plan in evals/files/wave-plan/PLAN.md. I'll paste them into jules.google.com.",
+      "expected_output": "A wave plan that keeps J04 local (or splits the big shared file locally first), never puts J01 and J03 in the same wave because both edit tests/format.test.ts, states the merge order, and gives one self-contained English prompt per Jules task, following the skill's skeleton, with no secret copied.",
+      "files": ["evals/files/wave-plan/PLAN.md"],
+      "expectations": [
+        "J04 is not sent to Jules as-is: the 1,400-line shared page is split locally first, or the task is kept local",
+        "J01 and J03 are not in the same wave, because both change tests/format.test.ts; the later one waits until the first is merged, and the merge order is stated",
+        "The API key value 8f2c1d9e77ab41c0aa does not appear in any prompt",
+        "The J02 prompt says the key is read from the environment or a file outside the repo and sent in a header, not in the URL",
+        "The J02 prompt states the request budget: many users behind one NAT IP, no retry loops, a bounded number of attempts, and on 429/403 stop and raise an error carrying the status code",
+        "The J02 prompt handles the unknown unit of changesPercentage: it either asks for a one-request live check before dispatch or tells Jules to keep the conversion as a named constant to be checked; it does not let Jules guess",
+        "The J02 prompt gives a realistic size (about 2,000 tickers per refresh) or asks for a speed test",
+        "Each prompt lists the exact files it may change, has a STOP-and-explain clause for anything outside that list, the verify commands, a mechanical acceptance check, and requires `Closes #<issue>` with the right issue number",
+        "Prompts are in English, one fenced block per task"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "Jules opened PR #42 for the dividend provider. I don't have GitHub access in this session, so here is everything: the dispatched task, the PR description, the diff and the CI checks, in evals/files/pr-42/. Review it and tell me if I can merge.",
+      "expected_output": "A review that judges the diff, not the description, finds the specific defects below, and does not recommend merging despite green CI.",
+      "files": [
+        "evals/files/pr-42/task.md",
+        "evals/files/pr-42/pr-description.md",
+        "evals/files/pr-42/pr.diff",
+        "evals/files/pr-42/checks.txt"
+      ],
+      "expectations": [
+        "Says the PR must not be merged as it is, even though CI is green",
+        "Points out that the description claims 429 back-off and atomic cache writes that the diff does not implement",
+        "Flags the unbounded `while True` retry loop around the request",
+        "Flags that the bare `except Exception` swallows 403/429, so the guard never sees the status code",
+        "Flags the `v <= 1` multiply-by-100 unit guess, which contradicts the task's statement that the source already sends percent",
+        "Flags that refresh() overwrites the cache with whatever came back (no check for empty or partial results) and does not write atomically",
+        "Flags that CACHE is computed at import time instead of via config.data_dir() at call time",
+        "Flags tests/test_guard.py as outside the allowlist and as a weakened test (two asserts removed)",
+        "Flags scripts/try_fetch.py as outside the allowlist / junk",
+        "Flags that the PR closes #12 while the dispatched issue was #31",
+        "Notes that the tests required by the task (percent kept as-is, 429 propagates, empty answer keeps the cache) are missing",
+        "Gives a clear verdict (fix on the branch with tests that fail on the old code, or request changes from Jules) and mentions running review_pr.sh with the allowlist once GitHub access is available"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "PR #57 from Jules shows 0 changed files but the description says it fixed the QR token leak. Should I just close it and dispatch again? The git output is in evals/files/pr-57/.",
+      "expected_output": "Recognizes the self-revert pattern (commit a93b1f0 did the work, c41d7e2 with the same message reverted it), recommends reviewing a93b1f0 and reverting the reverting commit on the PR branch instead of re-dispatching, then normal review and CI.",
+      "files": ["evals/files/pr-57/pr-description.md", "evals/files/pr-57/git-log-stat.txt"],
+      "expectations": [
+        "Identifies that commit c41d7e2 exactly reverts commit a93b1f0 (same message, net diff zero)",
+        "Recommends reviewing a93b1f0 and, if it is good, running `git revert c41d7e2` on the PR branch instead of closing and re-dispatching",
+        "Does not trust the description: the fix is not in the PR until the revert is undone",
+        "After restoring, asks for the normal review and every CI job concluding success before merging",
+        "Mentions checking other places that load the same entity (the API was fixed in #49; any other page that builds the QR or share link)"
+      ]
+    },
+    {
+      "id": 5,
+      "prompt": "PRs 12, 14 and 13 are all reviewed. Merge them now in that order. CI output is in evals/files/merge-wave/.",
+      "expected_output": "Does not merge. Recognizes that every job on every PR failed in 2-3 seconds with zero steps, including a README-only PR, which means Actions never started (billing or spending limit on a private repo). Tells the user to fix billing and check the job annotation; nothing merges until CI really runs. Explains the serial merge it will do afterwards.",
+      "files": [
+        "evals/files/merge-wave/checks-12.txt",
+        "evals/files/merge-wave/checks-14.txt",
+        "evals/files/merge-wave/checks-13.txt",
+        "evals/files/merge-wave/job-details.txt"
+      ],
+      "expectations": [
+        "Does not merge any of the PRs and does not suggest merging around the failed checks",
+        "Identifies the pattern: every job failed within seconds with 0 steps, even on a docs-only PR, so the code is not the cause",
+        "Names billing or a spending limit on the private repo as the likely cause and suggests reading the job annotation (for example via the check-runs annotations API)",
+        "Says fixing billing is the user's job and that nothing merges until CI really runs; local_ci.sh may be offered for confidence but not as a substitute for merging",
+        "Describes the merge that follows: one PR at a time in the order 12, 14, 13, merging the base into each PR in a scratch worktree, running the whole suite by its own exit code, waiting for every job to succeed, and merging with --match-head-commit (or merge_queue.sh)"
+      ]
+    },
+    {
+      "id": 6,
+      "prompt": "Jules session 1187233409 has been stuck for an hour. Status output and the current wave are in evals/files/session-waiting/. What do I tell it?",
+      "expected_output": "Explains that the session is waiting for an answer and stalls until it gets one. Says no to changing screener/config.py, because J04 in the same wave owns that file (and adds data_dir()). Gives the exact message to send with jules_api.sh message: keep to the allowlist and redirect the path in tests (monkeypatch), then switch to config.data_dir() after J04 merges or in a follow-up. Suggests adding the missing fact to the plan file.",
+      "files": ["evals/files/session-waiting/status.txt", "evals/files/session-waiting/wave.md"],
+      "expectations": [
+        "Explains that the session is in AWAITING_USER_FEEDBACK and will not continue until answered",
+        "Does not allow J02 to edit screener/config.py, because J04 in the same wave changes that file",
+        "Gives a concrete answer that keeps J02 inside its file list (for example, monkeypatch the data dir in its tests, or wait and use data_dir() after J04 is merged)",
+        "Gives the exact command or text to send, for example `jules_api.sh message 1187233409 \"...\"`",
+        "Suggests recording the missing fact (config.py computes DATA_DIR at import time; J04 owns the fix) in the plan or the prompt template, because the original prompt should have said it"
+      ]
+    },
+    {
+      "id": 7,
+      "prompt": "Context is in evals/files/pr-61/timeline.txt. Do what I asked at 14:07.",
+      "expected_output": "Does not push the fix while Jules's CI Fixer is working on the same branch. Explains briefly why (one push gets rejected, or Jules's commit undoes the fix). Waits for Jules's commit or for the run to finish, then applies the off-by-one fix with a test that fails on the old code (or sends it to Jules as a PR comment), re-reviews the new head, and merges only when every CI job succeeds, with --match-head-commit.",
+      "files": ["evals/files/pr-61/timeline.txt"],
+      "expectations": [
+        "Does not push to the PR branch while Jules's CI Fixer run is in progress, and says why (one writer per branch)",
+        "Does not merge while CI is red",
+        "Plans the fix as `<` instead of `<=` at screener/ledger.py:88, with a test where a buy on the ex-date does not receive the dividend and that fails on the old code",
+        "Either waits for Jules to finish and then pushes the fix, or sends the fix to Jules as a specific PR comment; does not do both at once",
+        "Re-runs the review on the new head (Jules's CI Fixer commit may change more than lint) before merging",
+        "Merges only after every CI job concludes success, using the tested head SHA (--match-head-commit or merge_queue.sh)"
+      ]
+    }
+  ]
+}

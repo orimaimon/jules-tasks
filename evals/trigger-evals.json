@@ -1,0 +1,19 @@
+[
+  {"query": "can you write a prompt i can paste into jules.google.com to add tests for the parser module", "should_trigger": true},
+  {"query": "split PLAN-quotes.md into PR-sized tasks that the cloud agent can do in parallel", "should_trigger": true},
+  {"query": "google-labs-jules[bot] opened 4 PRs overnight, review them and merge the good ones", "should_trigger": true},
+  {"query": "should this refactor go to Jules or should we do it here?", "should_trigger": true},
+  {"query": "open github issues labelled jules for each of these three bugs", "should_trigger": true},
+  {"query": "the free agent says it fixed the login bug but the PR has 0 files changed, what happened", "should_trigger": true},
+  {"query": "my jules session has been stuck for an hour, how do I see what it's waiting for", "should_trigger": true},
+  {"query": "merge PRs 92 90 93 91 one at a time, they were all opened by Jules", "should_trigger": true},
+  {"query": "this Copilot-authored PR claims it adds retry handling, check whether the diff actually does that", "should_trigger": true},
+  {"query": "set up our repo so Jules can run the test suite in its VM", "should_trigger": true},
+  {"query": "write a jest test for formatLargeNumber", "should_trigger": false},
+  {"query": "review my PR #18, I wrote it myself, focus on naming", "should_trigger": false},
+  {"query": "what does the git merge --no-ff flag do", "should_trigger": false},
+  {"query": "set up a GitHub Actions workflow that runs pytest on every push", "should_trigger": false},
+  {"query": "julia lang: how do I vectorize this loop", "should_trigger": false},
+  {"query": "plan the sprint for next week from these tickets", "should_trigger": false},
+  {"query": "rebase my feature branch onto main and fix the conflicts", "should_trigger": false}
+]

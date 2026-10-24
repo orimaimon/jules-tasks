@@ -4,14 +4,13 @@ An agent skill (`SKILL.md` + helper scripts) for working effectively with **Jule
 
 ## What's Inside
 
-- **[`SKILL.md`](./SKILL.md)** — Complete workflow guide:
-  1. Deciding whether a task belongs in Jules or a local agent
-  2. Planning parallel task waves without merge conflicts
-  3. Prompt template, `AGENTS.md` leverage & runtime context checklist
-  4. Pre-dispatch verification & dispatching via web UI, GitHub issues (`jules` label), REST API, or `jules` CLI
-  5. Mechanical + manual PR review checklist (and common Jules bug classes)
-  6. Safe serial merge queue workflow
-  7. Table of real-world failure modes and their guards
+- **[`SKILL.md`](./SKILL.md)** — The workflow, loaded when the skill triggers: Jules or local, planning a wave, the prompt skeleton, dispatching, the review checklist, and the serial merge checklist.
+- **[`docs/`](./docs/)** — Detail loaded only when needed:
+  - [`repo-setup.md`](./docs/repo-setup.md): one-time repository setup (`AGENTS.md`, setup script, CI Fixer, Reactive Mode, Memory, limits)
+  - [`cli-and-api.md`](./docs/cli-and-api.md): `jules_api.sh` and the `jules` CLI, plan approval, answering a waiting session, reviewing a wave as patches
+  - [`bug-classes.md`](./docs/bug-classes.md): bugs Jules keeps producing that its own tests miss, and what to check in the diff
+  - [`failure-modes.md`](./docs/failure-modes.md): every failure seen so far and its guard
+- **[`evals/`](./evals/)** — Seven scenario evals (skill-creator `evals.json` format) with offline fixtures, plus trigger queries for tuning the description. See [`evals/README.md`](./evals/README.md).
 - **[`scripts/jules_api.sh`](./scripts/jules_api.sh)** — Terminal client for the Jules `v1alpha` REST API (`new` with `automationMode: "AUTO_CREATE_PR"` or `--no-auto-pr`, `plan` to read a plan before `approve`, `message` for follow-ups and answers, `status` that shows what a waiting session asks, `activities` with the commands Jules ran and their exit codes, `patch` to download the diff, `list`, and `sources`).
 - **[`scripts/review_pr.sh`](./scripts/review_pr.sh)** — Read-only mechanical PR reviewer (checks empty diffs & net-zero self-reverts, cross-platform glob allowlists, sensitive files, risky patterns in added lines (including focused `.only` tests and empty catch blocks), test/assert count drops across `tests/` and colocated test files, branch freshness, and CI status).
 - **[`scripts/merge_queue.sh`](./scripts/merge_queue.sh)** — Safe serial PR merger (fetches, merges base into PR in a cleaned-up scratch worktree, runs the full test suite, pushes, verifies CI via JSON rollup, marks ready, and merges with `--match-head-commit`).

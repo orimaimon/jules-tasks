@@ -1,0 +1,10 @@
+$ bash jules_api.sh status 1187233409
+name:   sessions/1187233409
+title:  [Screener J02] Read data paths at call time in the prices loader
+state:  AWAITING_USER_FEEDBACK
+url:    https://jules.google.com/session/1187233409
+
+Jules is waiting for your answer (reply with: message <id> "..."):
+The tests for screener/loaders/prices.py still write into the real data folder, because
+screener/config.py computes DATA_DIR at import time. The cleanest fix is to change config.py to read
+the path at call time. config.py is not in my file list. Should I change it?

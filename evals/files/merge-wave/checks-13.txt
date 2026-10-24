@@ -1,0 +1,4 @@
+$ gh pr checks 13
+build   fail    2s
+lint    fail    2s
+tests   fail    3s

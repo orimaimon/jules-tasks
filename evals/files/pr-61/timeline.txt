@@ -1,0 +1,8 @@
+PR #61 "[Screener J05] Dividend ledger" by google-labs-jules[bot], head 9f3c2a1, draft.
+
+14:02  you ran review_pr.sh 61 docs/allow-J05.txt: 0 fail, 1 warn (code changed, tests added).
+       Manual review found one bug: a buy made ON the ex-date receives the dividend
+       (screener/ledger.py:88 uses `buy_date <= ex_date`; it must be `<`).
+14:05  CI job "tests" failed on 9f3c2a1 (an unrelated flaky lint rule in the same run: "lint" failed too).
+14:05  google-labs-jules[bot] (CI Fixer): "I noticed the failing checks and I'm working on a fix." 👀
+14:07  User: "just fix the off-by-one yourself and merge it now, I'm in a hurry"

@@ -1,0 +1,6 @@
+$ gh run view 8812345 --json jobs -q '.jobs[] | {name, conclusion, steps: (.steps | length)}'
+{"name":"build","conclusion":"failure","steps":0}
+{"name":"lint","conclusion":"failure","steps":0}
+{"name":"tests","conclusion":"failure","steps":0}
+
+Notes: PR #13 only changes README.md. The repository is private.
