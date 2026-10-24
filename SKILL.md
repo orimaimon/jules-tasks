@@ -51,7 +51,7 @@ Jules is free and parallel, so the bottleneck is merge conflicts and review time
 
 ## 3. Writing the prompt
 
-Write the prompt in English, as one self-contained block. Jules can't see gitignored plan files, local notes or this conversation, so anything it needs must be in the block.
+Write the prompt in English, as one self-contained block. Jules can't see gitignored plan files, local notes or this conversation, so anything it needs must be in the block (or in the repository's root `AGENTS.md` / `CLAUDE.md`, which Jules reads automatically when planning a session).
 
 Use this skeleton. Every section exists because its absence caused a bad PR before.
 
@@ -107,7 +107,9 @@ Also:
 **How to send it:**
 - **Pasted into jules.google.com:** one fenced block per task in the plan file.
 - **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block (see the project notes). Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
-- One issue per task. Title: `[Area] outcome`.
+- **Via the Jules REST API (`scripts/jules_api.sh`):** creates a session with `automationMode: "AUTO_CREATE_PR"` so Jules automatically opens a draft PR when done, and lets you send follow-up instructions or approve plans from the terminal (see section 5).
+- **Via the `jules` CLI (`@google/jules`):** `cat prompt.txt | jules remote new --repo <owner>/<repo>` (supports `--parallel N` up to 5 to compare multiple attempts on a tricky bug, though CLI-created sessions do not auto-open PRs; see section 5).
+- One issue/session per task. Title: `[Area] outcome`.
 
 **While it runs:**
 - Jules opens its PR **as a draft** and usually leaves it as a draft; "ready" is its issue comment, not the draft flag.
@@ -153,12 +155,25 @@ Verdict:
 - **Request changes** with a short, specific comment when the fix needs Jules's context. Jules can iterate on the same PR.
 - **Close** a PR that is empty, a duplicate, built on a very old base, or describes code that no longer exists. Then re-dispatch with a better prompt.
 
-### Sessions dispatched with the `jules` CLI (no PR yet)
-`cat prompt.txt | jules new --repo <owner>/<repo>` starts a session. The first line of the prompt becomes its title, so start it with a tag like `[Proj J03] …`. These sessions finish as "Completed" **without opening a PR**. The reason: the Jules API's session field `automationMode` defaults to `AUTOMATION_MODE_UNSPECIFIED` ("no automation"), only `AUTO_CREATE_PR` opens a branch and PR, and the CLI (0.1.x) has no flag for it. To get PRs automatically, dispatch as GitHub issues labelled `jules`, or call the REST API (`sessions.create` with `automationMode: "AUTO_CREATE_PR"`) using an API key the user sets in an env var themselves. Publishing ("Publish PR") and follow-up messages only exist in the web UI, because the CLI has just `new`, `list`, `pull` and `teleport`. Use the gap to review before anything reaches GitHub:
+### Sessions dispatched with the `jules` CLI or REST API (`jules_api.sh`)
+`cat prompt.txt | jules new --repo <owner>/<repo>` starts a session. The first line of the prompt becomes its title, so start it with a tag like `[Proj J03] …`. These CLI sessions finish as "Completed" **without opening a PR**. The reason: the Jules API's session field `automationMode` defaults to `AUTOMATION_MODE_UNSPECIFIED` ("no automation"), only `AUTO_CREATE_PR` opens a branch and PR, and the CLI (0.1.x) has no flag for it.
+
+To get PRs automatically—or to send follow-up messages and approve plans without leaving the terminal—use the bundled REST API script (`JULES_API_KEY` from `https://jules.google.com/settings`):
+```bash
+# Start a session that automatically creates a GitHub PR when completed:
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh new <owner/repo> <base-branch> prompt.txt
+
+# Check status and PR link, send a follow-up message, or approve a pending plan:
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh status <session-id>
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh message <session-id> "Also update print page..."
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh approve <session-id>
+```
+
+When using the `jules` CLI without auto-PR, use the gap to review before anything reaches GitHub:
 1. `jules remote list --session` shows the status. `jules remote pull --session <id> > J03.patch` (**without** `--apply`) only downloads the diff.
 2. Check each patch's files against its allowlist (`grep '^diff --git'`).
 3. Apply the whole wave **together** on a scratch worktree from the base (`git worktree add --detach <scratch> origin/<base>`, link `node_modules` with a junction or symlink, `git apply` each patch). Run tsc, lint and the tests once, and judge them by their own exit codes. A clean combined run proves the wave is conflict-free and green as a whole.
-4. Give the user a list: which sessions to publish as they are, and for the rest, the exact English follow-up text to paste into the session. Then review the resulting PRs with the script, and merge as in section 6.
+4. Give the user a list: which sessions to publish as they are, and for the rest, send the follow-up via `jules_api.sh message <id> ...` (or give the exact English follow-up text to paste into the session web UI). Then review the resulting PRs with the script, and merge as in section 6.
 
 ---
 

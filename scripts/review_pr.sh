@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Read-only mechanical review of a (Jules) PR. Usage:
 #   bash review_pr.sh <PR#> [allowed-files.txt]
-# allowed-files.txt: one path or glob per line (e.g. src/proxy.ts, tests/*.test.mjs, screener/data/fred.py).
+# allowed-files.txt: one path or glob per line (e.g. src/proxy.ts, tests/*.test.mjs, src/lib/**).
 # Requires: git, gh (authenticated), node. Run from inside the repository. Works for JS/TS and Python repos.
 # It fetches refs/pull/<n>/head into a local ref and reads; it never checks out, commits or pushes.
 set -uo pipefail
@@ -28,30 +28,49 @@ CLOSES="$(jget '(j.closingIssuesReferences||[]).map(i=>"#"+i.number).join(" ")')
 if [ -z "$CLOSES" ]; then warn 'closes no issue: add "Closes #N" (the dispatched issue) to the PR body'
 else echo "  closes: $CLOSES  <- check it is the dispatched issue"; fi
 
-echo "== 1. Size"
-ADD="$(jget 'j.additions')"; DEL="$(jget 'j.deletions')"; NF="$(jget 'j.changedFiles')"
-if [ "$NF" = "0" ] || [ $((ADD+DEL)) -eq 0 ]; then fail "EMPTY PR: 0 changed lines. Whatever the title claims is not in the code."; else ok "$NF files, +$ADD -$DEL"; fi
-
 REF="refs/remotes/review/pr-$PR"
 git fetch -q origin "+refs/pull/$PR/head:$REF" "+refs/heads/$BASE:refs/remotes/review/base" 2>/dev/null \
   || { echo "  could not fetch PR ref; later checks skipped"; exit 1; }
 MB="$(git merge-base "refs/remotes/review/base" "$REF")"
 FILES="$(git diff --name-only "$MB" "$REF")"
-[ -z "$FILES" ] && echo "  (no diff against $BASE: already merged? later checks see nothing)"
+
+echo "== 1. Size"
+ADD="$(jget 'j.additions')"; DEL="$(jget 'j.deletions')"; NF="$(jget 'j.changedFiles')"
+if [ "$NF" = "0" ] || [ $((ADD+DEL)) -eq 0 ]; then
+  fail "EMPTY PR: 0 changed lines. Whatever the title claims is not in the code."
+  CCOUNT="$(git rev-list --count "$MB..$REF" 2>/dev/null || echo 0)"
+  if [ "${CCOUNT:-0}" -gt 0 ]; then
+    warn "PR has $CCOUNT commit(s) with net 0 diff (self-revert? check if commit N was reverted by N+1):"
+    git log --oneline --stat "$MB..$REF" | sed 's/^/     /'
+  fi
+else
+  ok "$NF files, +$ADD -$DEL"
+fi
+[ -z "$FILES" ] && echo "  (no diff against $BASE: already merged or net-zero revert? later checks see nothing)"
 
 echo "== 2. Files"
 echo "$FILES" | sed 's/^/     /'
 if [ -n "$ALLOW" ] && [ -f "$ALLOW" ]; then
+  OUTSIDE="$(node -e '
+    const fs = require("fs");
+    const files = process.argv[1].split(/\r?\n/).filter(Boolean);
+    const pats = fs.readFileSync(process.argv[2], "utf8")
+      .split(/\r?\n/)
+      .map(l => l.replace(/#.*/, "").trim())
+      .filter(Boolean);
+    const toRegex = (p) => {
+      let s = p.replace(/[.+^${}()|[\]\\]/g, "\\$&");
+      s = s.replace(/\*\*/g, "\0").replace(/\*/g, "[^/]*").replace(/\?/g, "[^/]").replace(/\0/g, ".*");
+      return new RegExp("^" + s + "$");
+    };
+    const regexes = pats.map(toRegex);
+    for (const f of files) {
+      if (!regexes.some(r => r.test(f))) console.log(f);
+    }
+  ' "$FILES" "$ALLOW")"
   while IFS= read -r f; do
-    [ -z "$f" ] && continue
-    matched=0
-    while IFS= read -r pat; do
-      pat="${pat%%#*}"; pat="$(echo "$pat" | xargs)"; [ -z "$pat" ] && continue
-      # shellcheck disable=SC2053
-      if [[ "$f" == $pat ]]; then matched=1; break; fi
-    done < "$ALLOW"
-    [ $matched -eq 0 ] && fail "outside allowlist: $f"
-  done <<< "$FILES"
+    [ -n "$f" ] && fail "outside allowlist: $f"
+  done <<< "$OUTSIDE"
 fi
 SENSITIVE='^(package\.json|package-lock\.json|tsconfig\.json|eslint\.config\.[mc]?js|\.github/workflows/|prisma/schema\.prisma|src/types/|src/proxy\.ts|src/lib/auth|Dockerfile|next\.config\.)|(^|/)(requirements[^/]*\.(txt|lock)|pyproject\.toml|uv\.lock|setup\.cfg|conftest\.py|CLAUDE\.md|AGENTS\.md|ROADMAP\.md)$|\.(bat|cmd|ps1)$'
 while read -r f; do [ -n "$f" ] && warn "sensitive file touched: $f"; done < <(echo "$FILES" | grep -E "$SENSITIVE" || true)
@@ -114,6 +133,6 @@ process.exit(bad?1:0)' "$JSON"
 case $? in 0) ok "every check concluded success";; 3) WARN=$((WARN+1));; *) fail "not every check concluded success (pending or failing)";; esac
 
 echo "== Summary: $FAIL fail, $WARN warn"
-echo "Mechanical checks only. Still review by hand: task steps vs diff, test quality, runtime fit, and the bug classes in SKILL.md section 4."
+echo "Mechanical checks only. Still review by hand: task steps vs diff, test quality, runtime fit, and the bug classes in SKILL.md section 5."
 git update-ref -d "$REF" 2>/dev/null; git update-ref -d refs/remotes/review/base 2>/dev/null
 [ $FAIL -gt 0 ] && exit 1 || exit 0
