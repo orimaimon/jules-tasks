@@ -7,3 +7,5 @@ d. Route the live screener's quote requests through the new FMP provider instead
 e. Change the dashboard cards that appear after login, and check them in the browser with my account.
 f. Finish the refactor of `src/server/cache.ts` I started on my laptop yesterday (not pushed yet).
 g. Read-only audit: list every place the code reads an API key or token, and whether it can reach a log or a URL. Output: a markdown report.
+h. Fix a 2-line bug in the price-column sort in `src/app/page.tsx` (1,400 lines; every feature edits this page, and items a–g run this week).
+i. Update `AGENTS.md` so agents use `pnpm` instead of `npm` (the repo switched last week).

@@ -4,8 +4,10 @@
     {
       "id": 1,
       "prompt": "Here's my backlog in evals/files/triage/tasks.md. Which of these should I hand to Jules and which should I keep for a local agent? Short answer per item please.",
-      "expected_output": "A per-item decision with a one-line reason tied to the skill's criteria: a, c, g go to Jules; b, e, f stay local; d is split (provider work can go to Jules, wiring into the live request path stays local).",
-      "files": ["evals/files/triage/tasks.md"],
+      "expected_output": "A per-item decision with a one-line reason tied to the skill's criteria: a, c, g go to Jules; b, e, f stay local; d is split (provider work can go to Jules, wiring into the live request path stays local). Item h stays local or waits for a later wave because the shared 1,400-line page is a conflict magnet; i is fine for Jules but is a rules file to review carefully. Notes that c's scope (src/lib/**) includes a's new file, so they must not run in parallel without excluding it.",
+      "files": [
+        "evals/files/triage/tasks.md"
+      ],
       "expectations": [
         "Item a (new pure function with tests in new files) goes to Jules",
         "Item b (schema change and migration) stays local",
@@ -14,6 +16,8 @@
         "Item e stays local because it needs browser verification with a login",
         "Item f stays local because it depends on unpushed local work",
         "Item g (read-only audit ending in a report) goes to Jules",
+        "Item h is not sent to Jules alongside other work on the shared 1,400-line page: it stays local, waits for a later wave, or the file is split first",
+        "Notes that item c's scope (src/lib/**) overlaps item a's new file src/lib/drawdown.ts, and orders them or excludes the file",
         "Each decision gives a reason, not just a label"
       ]
     },
@@ -21,12 +25,14 @@
       "id": 2,
       "prompt": "Write the Jules prompts for the first wave from my plan in evals/files/wave-plan/PLAN.md. I'll paste them into jules.google.com.",
       "expected_output": "A wave plan that keeps J04 local (or splits the big shared file locally first), never puts J01 and J03 in the same wave because both edit tests/format.test.ts, states the merge order, and gives one self-contained English prompt per Jules task, following the skill's skeleton, with no secret copied.",
-      "files": ["evals/files/wave-plan/PLAN.md"],
+      "files": [
+        "evals/files/wave-plan/PLAN.md"
+      ],
       "expectations": [
         "J04 is not sent to Jules as-is: the 1,400-line shared page is split locally first, or the task is kept local",
         "J01 and J03 are not in the same wave, because both change tests/format.test.ts; the later one waits until the first is merged, and the merge order is stated",
         "The API key value 8f2c1d9e77ab41c0aa does not appear in any prompt",
-        "The J02 prompt says the key is read from the environment or a file outside the repo and sent in a header, not in the URL",
+        "The J02 prompt keeps the key out of logs and error messages: read from the environment or a file outside the repo, sent in a header; or, if it says the API only accepts the key as a query parameter, it forbids putting the URL or key in errors, logs or snapshots",
         "The J02 prompt states the request budget: many users behind one NAT IP, no retry loops, a bounded number of attempts, and on 429/403 stop and raise an error carrying the status code",
         "The J02 prompt handles the unknown unit of changesPercentage: it either asks for a one-request live check before dispatch or tells Jules to keep the conversion as a named constant to be checked; it does not let Jules guess",
         "The J02 prompt gives a realistic size (about 2,000 tickers per refresh) or asks for a speed test",
@@ -56,14 +62,18 @@
         "Flags scripts/try_fetch.py as outside the allowlist / junk",
         "Flags that the PR closes #12 while the dispatched issue was #31",
         "Notes that the tests required by the task (percent kept as-is, 429 propagates, empty answer keeps the cache) are missing",
-        "Gives a clear verdict (fix on the branch with tests that fail on the old code, or request changes from Jules) and mentions running review_pr.sh with the allowlist once GitHub access is available"
+        "Gives a clear verdict (fix on the branch with tests that fail on the old code, request changes from Jules, or close and re-dispatch with a corrected prompt) with a reason",
+        "Mentions running review_pr.sh with the task's allowlist (or the equivalent mechanical checks) once GitHub access is available"
       ]
     },
     {
       "id": 4,
       "prompt": "PR #57 from Jules shows 0 changed files but the description says it fixed the QR token leak. Should I just close it and dispatch again? The git output is in evals/files/pr-57/.",
       "expected_output": "Recognizes the self-revert pattern (commit a93b1f0 did the work, c41d7e2 with the same message reverted it), recommends reviewing a93b1f0 and reverting the reverting commit on the PR branch instead of re-dispatching, then normal review and CI.",
-      "files": ["evals/files/pr-57/pr-description.md", "evals/files/pr-57/git-log-stat.txt"],
+      "files": [
+        "evals/files/pr-57/pr-description.md",
+        "evals/files/pr-57/git-log-stat.txt"
+      ],
       "expectations": [
         "Identifies that commit c41d7e2 exactly reverts commit a93b1f0 (same message, net diff zero)",
         "Recommends reviewing a93b1f0 and, if it is good, running `git revert c41d7e2` on the PR branch instead of closing and re-dispatching",
@@ -94,7 +104,10 @@
       "id": 6,
       "prompt": "Jules session 1187233409 has been stuck for an hour. Status output and the current wave are in evals/files/session-waiting/. What do I tell it?",
       "expected_output": "Explains that the session is waiting for an answer and stalls until it gets one. Says no to changing screener/config.py, because J04 in the same wave owns that file (and adds data_dir()). Gives the exact message to send with jules_api.sh message: keep to the allowlist and redirect the path in tests (monkeypatch), then switch to config.data_dir() after J04 merges or in a follow-up. Suggests adding the missing fact to the plan file.",
-      "files": ["evals/files/session-waiting/status.txt", "evals/files/session-waiting/wave.md"],
+      "files": [
+        "evals/files/session-waiting/status.txt",
+        "evals/files/session-waiting/wave.md"
+      ],
       "expectations": [
         "Explains that the session is in AWAITING_USER_FEEDBACK and will not continue until answered",
         "Does not allow J02 to edit screener/config.py, because J04 in the same wave changes that file",
@@ -105,14 +118,16 @@
     },
     {
       "id": 7,
-      "prompt": "Context is in evals/files/pr-61/timeline.txt. Do what I asked at 14:07.",
+      "prompt": "Jules's PR #61: context is in evals/files/pr-61/timeline.txt. Do what I asked at 14:07.",
       "expected_output": "Does not push the fix while Jules's CI Fixer is working on the same branch. Explains briefly why (one push gets rejected, or Jules's commit undoes the fix). Waits for Jules's commit or for the run to finish, then applies the off-by-one fix with a test that fails on the old code (or sends it to Jules as a PR comment), re-reviews the new head, and merges only when every CI job succeeds, with --match-head-commit.",
-      "files": ["evals/files/pr-61/timeline.txt"],
+      "files": [
+        "evals/files/pr-61/timeline.txt"
+      ],
       "expectations": [
         "Does not push to the PR branch while Jules's CI Fixer run is in progress, and says why (one writer per branch)",
         "Does not merge while CI is red",
         "Plans the fix as `<` instead of `<=` at screener/ledger.py:88, with a test where a buy on the ex-date does not receive the dividend and that fails on the old code",
-        "Either waits for Jules to finish and then pushes the fix, or sends the fix to Jules as a specific PR comment; does not do both at once",
+        "Either waits for Jules to finish and then puts the fix on top of Jules's latest head by merging (no rebase or force-push), or sends the fix to Jules as a specific PR comment; does not do both at once",
         "Re-runs the review on the new head (Jules's CI Fixer commit may change more than lint) before merging",
         "Merges only after every CI job concludes success, using the tested head SHA (--match-head-commit or merge_queue.sh)"
       ]

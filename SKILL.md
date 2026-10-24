@@ -174,7 +174,7 @@ Then by hand, what a script can't see:
 **Verdict:**
 - **Fix it yourself on the PR branch** when the problem is small and clear (most bug classes): commit on the branch with a message that says what and why, and add a test that fails on the old code. Push to the PR branch, never to the base branch.
 - **Request changes** with a short, specific comment on the PR when the fix needs Jules's context (start it with `@Jules` if Reactive Mode is on). Jules reacts with 👀 and pushes a commit to the same PR. If the fix needs a file outside the original allowlist, name it in the comment, or Jules will STOP on its own rule.
-- **Never both at once.** Before pushing your own fix, make sure Jules isn't working on the branch (a fresh 👀 on a comment, a CI Fixer run after a red check, or the session `IN_PROGRESS`). Otherwise one push is rejected, or Jules's commit silently undoes yours.
+- **Never both at once.** Before pushing your own fix, make sure Jules isn't working on the branch (a fresh 👀 on a comment, a CI Fixer run after a red check, or the session `IN_PROGRESS`). Otherwise one push is rejected, or Jules's commit silently undoes yours. When Jules is done, fetch, put your commit on top of its latest head (merge, never rebase or force-push a Jules branch), and review what Jules changed before merging.
 - **Close** a PR that is empty, a duplicate, built on a very old base, or describes code that no longer exists. Then re-dispatch with a better prompt. Exception: an "empty" PR whose commit N was reverted by commit N+1 (see [docs/failure-modes.md](docs/failure-modes.md)) can be rescued with `git revert` of the reverting commit.
 
 ---
