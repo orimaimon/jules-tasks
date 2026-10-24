@@ -6,14 +6,22 @@
 #
 #   TEST_CMD="screener/.venv/Scripts/python -m pytest tests/ -q" bash merge_queue.sh 92 90 93
 #
-# Env: TEST_CMD (required; run from the worktree root, its exit code decides), BASE (default main),
+# Env: TEST_CMD (required; run from the worktree root, its exit code decides), BASE (default: the repo's default branch),
 #      WT (scratch worktree, default ../<repo>-mq), MERGE_FLAG (default --merge), KEEP_WT (default 0).
 # Why serial: every merge makes the remaining PRs stale, and tests from one PR can fail on another PR's
 # code (seen: a "no email in the repo" test failing on a fixture added by a different PR).
+# A PR that already contains the latest base is not re-tested locally: its CI ran on exactly that head.
 set -uo pipefail
 : "${TEST_CMD:?set TEST_CMD, e.g. TEST_CMD='npm test' or 'python -m pytest -q'}"
-BASE="${BASE:-main}"
 ROOT="$(git rev-parse --show-toplevel)" || exit 1
+# The repository's default branch (origin/HEAD), unless BASE is set. Jules branches from it.
+default_base() {
+  git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' && return
+  gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null && return
+  echo main
+}
+BASE="${BASE:-$(cd "$ROOT" && default_base)}"
+echo "base: $BASE"
 WT="${WT:-$(dirname "$ROOT")/$(basename "$ROOT")-mq}"
 MERGE_FLAG="${MERGE_FLAG:---merge}"
 LOG="$(mktemp)"

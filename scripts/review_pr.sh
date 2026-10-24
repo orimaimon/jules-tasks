@@ -71,6 +71,10 @@ if [ -n "$ALLOW" ] && [ -f "$ALLOW" ]; then
   while IFS= read -r f; do
     [ -n "$f" ] && fail "outside allowlist: $f"
   done <<< "$OUTSIDE"
+elif [ -n "$ALLOW" ]; then
+  fail "allowlist file not found: $ALLOW"
+else
+  warn "no allowlist given: pass the task's file list as the second argument"
 fi
 SENSITIVE='^(package\.json|package-lock\.json|tsconfig\.json|eslint\.config\.[mc]?js|\.github/workflows/|prisma/schema\.prisma|src/types/|src/proxy\.ts|src/lib/auth|Dockerfile|next\.config\.)|(^|/)(requirements[^/]*\.(txt|lock)|pyproject\.toml|uv\.lock|setup\.cfg|conftest\.py|CLAUDE\.md|AGENTS\.md|ROADMAP\.md)$|\.(bat|cmd|ps1)$'
 while read -r f; do [ -n "$f" ] && warn "sensitive file touched: $f"; done < <(echo "$FILES" | grep -E "$SENSITIVE" || true)
@@ -82,10 +86,12 @@ echo "== 3. Risky patterns in added lines"
 ADDED="$(git diff -U0 "$MB" "$REF" -- . ':(exclude)package-lock.json' ':(exclude)uv.lock' | grep -E '^\+[^+]' || true)"
 PATTERNS=(
   'npx ' '\btsx\b' 'ts-node' 'eslint-disable' 'accept-data-loss' 'force-reset' ': any\b' '@ts-ignore' '@ts-expect-error'
-  'test\.skip|it\.skip|\{ ?skip:' 'assert\.ok\(true\)'
+  'test\.skip|it\.skip|describe\.skip|\bx(it|describe|test)\(|\{ ?skip:' 'assert\.ok\(true\)'
+  '\.only\('                          # a focused test (it.only/describe.only) silently skips the rest of the file
+  'it\.todo|test\.todo'
   'pytest\.mark\.(skip|skipif|xfail)|pytest\.skip\(' '# ?(noqa|type: ?ignore)' 'assert True\b'
-  'while True'                        # an unbounded loop around a request = endless traffic when the source fails
-  'except[^:]*:[[:space:]]*pass'      # a swallowed error hides blocks and data loss
+  'while True|while ?\(true\)|for ?\(;;\)'   # an unbounded loop around a request = endless traffic when the source fails
+  'except[^:]*:[[:space:]]*pass|catch ?(\([^)]*\))? ?\{ ?\}'   # a swallowed error hides blocks and data loss
   'apiKey=|api_key=|[?&](key|token)=' # a key in a URL ends up in logs and error messages
   'verify=False'
 )
@@ -93,23 +99,25 @@ for pat in "${PATTERNS[@]}"; do
   hits="$(echo "$ADDED" | grep -cE -- "$pat" || true)"
   [ "${hits:-0}" -gt 0 ] && warn "'$pat' appears in $hits added line(s)"
 done
+# Test files, wherever they live: tests/ and test/ dirs, colocated *.test.* / *.spec.*, __tests__/, test_*.py, *_test.py.
+TESTSPEC=('tests/*' 'test/*' '*.test.*' '*.spec.*' '*__tests__/*' '*test_*.py' '*_test.py')
 # Tests that sleep for real or reach the network: look at each hit (fine only inside a monkeypatched fake).
-TADDED="$(git diff -U0 "$MB" "$REF" -- 'tests/*' 'test/*' | grep -E '^\+[^+]' || true)"
+TADDED="$(git diff -U0 "$MB" "$REF" -- "${TESTSPEC[@]}" | grep -E '^\+[^+]' || true)"
 for pat in 'time\.sleep\(' 'requests\.(get|post)\(' 'urlopen\(' 'yf\.(download|screen)\(' 'fetch\(.https?:'; do
   hits="$(echo "$TADDED" | grep -cE -- "$pat" || true)"
   [ "${hits:-0}" -gt 0 ] && warn "tests: '$pat' in $hits added line(s): real sleep or network?"
 done
-DELTESTS="$(git diff --name-only --diff-filter=D "$MB" "$REF" | grep -E '(^|/)tests?/|\.test\.' || true)"
+DELTESTS="$(git diff --name-only --diff-filter=D "$MB" "$REF" -- "${TESTSPEC[@]}" || true)"
 [ -n "$DELTESTS" ] && fail "test files deleted: $(echo $DELTESTS)"
 
-echo "== 4. Assert and test counts (tests/)"
+echo "== 4. Assert and test counts (test files)"
 # JS/TS: assert(...), assert.x(...), expect(...). Python: lines that start with "assert". Tests: def test_ / it( / test(.
-count()  { git grep -hE "assert(\.[a-zA-Z]+)?\(|expect\(|^[[:space:]]*assert[[:space:](]" "$1" -- 'tests/*' 'test/*' 2>/dev/null | wc -l | tr -d ' '; }
-tcount() { git grep -hE "^[[:space:]]*(async )?def test_|^[[:space:]]*(it|test)\(" "$1" -- 'tests/*' 'test/*' 2>/dev/null | wc -l | tr -d ' '; }
+count()  { git grep -hE "assert(\.[a-zA-Z]+)?\(|expect\(|^[[:space:]]*assert[[:space:](]" "$1" -- "${TESTSPEC[@]}" 2>/dev/null | wc -l | tr -d ' '; }
+tcount() { git grep -hE "^[[:space:]]*(async )?def test_|^[[:space:]]*(it|test)(\.only)?\(" "$1" -- "${TESTSPEC[@]}" 2>/dev/null | wc -l | tr -d ' '; }
 B="$(count "$MB")"; H="$(count "$REF")"; TB="$(tcount "$MB")"; TH="$(tcount "$REF")"
 if [ "$H" -lt "$B" ]; then fail "asserts dropped: $B -> $H"; else ok "asserts $B -> $H"; fi
 if [ "$TH" -lt "$TB" ]; then fail "tests dropped: $TB -> $TH"; else ok "tests $TB -> $TH"; fi
-CODE="$(echo "$FILES" | grep -vE '(^|/)tests?/|\.(md|html|json|csv|txt)$|^$' || true)"
+CODE="$(echo "$FILES" | grep -vE '(^|/)(tests?|__tests__)/|\.(test|spec)\.|(^|/)test_[^/]*\.py$|_test\.py$|\.(md|html|json|csv|txt)$|^$' || true)"
 [ "$TH" -eq "$TB" ] && [ -n "$CODE" ] && warn "code changed but no new test"
 
 echo "== 5. Freshness"

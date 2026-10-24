@@ -5,7 +5,7 @@
 #
 # Usage:
 #   STEPS_FILE=<path> bash local_ci.sh <PR#> [PR# ...]
-#   (from inside the repository; BASE defaults to master)
+#   (from inside the repository; BASE defaults to the repo's default branch)
 #
 # The steps file is plain bash. It must define:
 #   STEPS=(name1 name2 ...)            # order of execution
@@ -14,13 +14,21 @@
 # Steps get: $WT (worktree path), $PG_URL (if NEED_PG), $RUN_DIR (logs), $BASE.
 #
 # Safety: never touches the user's checkout or their database. The worktree lives under
-# $SCRATCH (default: $TMPDIR/local-ci), Postgres listens on $PG_PORT (default 5433) with data in tmpfs,
+# $SCRATCH (default: $HOME/.lci), Postgres listens on $PG_PORT (default 5433) with data in tmpfs,
 # and both are removed at the end unless KEEP=1. Nothing is pushed or merged on GitHub.
 set -uo pipefail
+# Associative arrays need bash 4+ (macOS ships 3.2 as /bin/bash: `brew install bash`, then run with that bash).
+[ "${BASH_VERSINFO[0]}" -ge 4 ] || { echo "local_ci.sh needs bash >= 4 (this is $BASH_VERSION)"; exit 2; }
 
 # With no PR numbers it checks origin/<base> itself (e.g. after merging a wave).
 : "${STEPS_FILE:?set STEPS_FILE to the project steps file}"
-BASE="${BASE:-master}"
+# The repository's default branch (origin/HEAD), unless BASE is set. Jules branches from it.
+default_base() {
+  git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||' && return
+  gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null && return
+  echo main
+}
+BASE="${BASE:-$(default_base)}"
 # Keep this path SHORT on Windows: npm installs nest deeply and exceed MAX_PATH (260) under long temp dirs.
 SCRATCH="${SCRATCH:-$HOME/.lci}"
 PG_PORT="${PG_PORT:-5433}"

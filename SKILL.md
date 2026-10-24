@@ -96,6 +96,17 @@ Also:
 
 ## 4. Dispatching
 
+**Once per repository, before the first wave** (all in the repo's settings on jules.google.com, or in the repo itself):
+- **Root `AGENTS.md`** holds the standing ground rules and the exact verify commands. Then each prompt carries only what is specific to the task, and rules don't drift between prompts.
+- **Setup script** (repo → Configuration): install dependencies and run the verify commands once, so Jules snapshots a working environment. Without it, "Verify before opening the PR" is a step Jules can't actually run, and the PR may still say "all tests pass". Prove it with one trivial task and check the commands really ran (`jules_api.sh activities <id> 50` shows each `bash exit <code>: <command>`).
+- **Environment variables** are per repo and fixed once a task starts. Test values only; never production secrets.
+- **Settings that change how a wave behaves:**
+  - **CI Fixer:** Jules pushes fixes to its own PR when GitHub Actions fail on it. Good for lint noise, but it means Jules may push to a branch you are fixing or merging (see 5 and 6).
+  - **PR comments:** Jules reads comments on its PRs (👀 reaction) and pushes a commit. With **Reactive Mode** on, it acts only on comments that mention `@Jules`. Turn it on if people discuss Jules PRs among themselves, so a remark to a colleague doesn't start a commit.
+  - **Memory (Knowledge):** Jules keeps corrections between tasks. Useful, but a stale memory can contradict a prompt. If Jules keeps doing something the prompt forbids, check it.
+  - **Commit authorship:** Jules only, co-authored, or you only. Pick what the repo's history and CLA need.
+- **Limits:** your plan caps concurrent and daily tasks. A wave larger than the concurrent limit queues, which is fine, but don't count on it finishing at once.
+
 **Before you send anything:**
 - **Look for duplicates.** List open issues and PRs (`gh issue list`, `gh pr list`) and search for the same files or topic. Another session once dispatched the same task five minutes earlier, and Jules started both; close the later one (and its PR) at once.
 - **Check your spec against the repository.** Jules follows a wrong spec to the letter, and it comes back in the PR as if it were Jules's idea. Before dispatching:
@@ -108,11 +119,14 @@ Also:
 - **Pasted into jules.google.com:** one fenced block per task in the plan file.
 - **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block (see the project notes). Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
 - **Via the Jules REST API (`scripts/jules_api.sh`):** creates a session with `automationMode: "AUTO_CREATE_PR"` so Jules automatically opens a draft PR when done, and lets you send follow-up instructions or approve plans from the terminal (see section 5).
+  - For a **risky task** (security path, shared file, a spec you are unsure of), add `--require-plan-approval`. Then `jules_api.sh plan <id>` prints the plan: check that every file it names is in the allowlist and every step matches the task, and either `approve <id>` or `message <id> "..."` with the correction. A wrong plan costs one message; a wrong PR costs a review and a re-dispatch.
+  - Add `--no-auto-pr` to keep the result off GitHub until you have looked at it: when the session completes, `jules_api.sh patch <id>` downloads the diff (same review path as the CLI below).
 - **Via the `jules` CLI (`@google/jules`):** `cat prompt.txt | jules remote new --repo <owner>/<repo>` (supports `--parallel N` up to 5 to compare multiple attempts on a tricky bug, though CLI-created sessions do not auto-open PRs; see section 5).
 - One issue/session per task. Title: `[Area] outcome`.
 
 **While it runs:**
 - Jules opens its PR **as a draft** and usually leaves it as a draft; "ready" is its issue comment, not the draft flag.
+- A session in `AWAITING_USER_FEEDBACK` has asked a question and **stalls until you answer**. `jules_api.sh status <id>` prints the question; answer with `message <id> "..."`. If you can't answer it from the task, the prompt was missing something: add it to the plan file too.
 - If Jules fails (no PR, or it reports it could not finish): remove the label and add it back once. On a second failure, split the task or do it locally.
 - Don't poll. Wait on CI with `gh pr checks <n> --watch` in the background, or schedule a check-in (a recurring prompt that says exactly what to do with each ready PR and when to stop).
 
@@ -132,7 +146,7 @@ It reports: an empty diff; files outside the allowlist; sensitive files (package
 
 Then check by hand what a script can't:
 1. **Does the diff do what the task asked, all of it?** Walk the task's numbered steps against the diff.
-2. **Tests:** new tests exercise the new behavior (they would fail on the old code), nothing was deleted, skipped or loosened, no placeholder tests.
+2. **Tests:** new tests exercise the new behavior (they would fail on the old code), nothing was deleted, skipped or loosened, no placeholder tests, no `.only` left behind. For API sessions, check that the verify commands really ran and passed in Jules's VM: `jules_api.sh activities <id> 50` lists each command with its exit code.
 3. **Runtime fit:** re-read the change against the Context facts. This is where "correct but breaks production" hides.
 4. **The bug classes Jules keeps producing, which its own tests don't catch** (each one was found in a real PR):
    - **Unbounded loops around requests:** "step back until a complete period is found" with `while True` sent a request every 0.2 s forever when the source returned errors.
@@ -152,11 +166,12 @@ Then check by hand what a script can't:
 
 Verdict:
 - **Fix it yourself on the PR branch** when the problem is small and clear (most of the bugs above): commit on the branch with a message that says what and why, and add a test that fails on the old code. Push to the PR branch, never to the base branch.
-- **Request changes** with a short, specific comment when the fix needs Jules's context. Jules can iterate on the same PR.
+- **Request changes** with a short, specific comment on the PR when the fix needs Jules's context (start it with `@Jules` if Reactive Mode is on). Jules reacts with 👀 and pushes a commit to the same PR. If the fix needs a file outside the original allowlist, name it in the comment, or Jules will STOP on its own rule.
+- **Never both at once.** Before pushing your own fix, make sure Jules isn't working on the branch (a fresh 👀 on a comment, a CI Fixer run after a red check, or the session `IN_PROGRESS`). Otherwise one push is rejected, or Jules's commit silently undoes yours.
 - **Close** a PR that is empty, a duplicate, built on a very old base, or describes code that no longer exists. Then re-dispatch with a better prompt.
 
 ### Sessions dispatched with the `jules` CLI or REST API (`jules_api.sh`)
-`cat prompt.txt | jules new --repo <owner>/<repo>` starts a session. The first line of the prompt becomes its title, so start it with a tag like `[Proj J03] …`. These CLI sessions finish as "Completed" **without opening a PR**. The reason: the Jules API's session field `automationMode` defaults to `AUTOMATION_MODE_UNSPECIFIED` ("no automation"), only `AUTO_CREATE_PR` opens a branch and PR, and the CLI (0.1.x) has no flag for it.
+`cat prompt.txt | jules remote new --repo <owner>/<repo>` starts a session. The first line of the prompt becomes its title, so start it with a tag like `[Proj J03] …`. These CLI sessions finish as "Completed" **without opening a PR**. The reason: the Jules API's session field `automationMode` defaults to `AUTOMATION_MODE_UNSPECIFIED` ("no automation"), only `AUTO_CREATE_PR` opens a branch and PR, and the CLI has no flag for it (checked against the CLI reference; re-check `jules remote new --help` after an upgrade).
 
 To get PRs automatically—or to send follow-up messages and approve plans without leaving the terminal—use the bundled REST API script (`JULES_API_KEY` from `https://jules.google.com/settings`):
 ```bash
@@ -167,10 +182,15 @@ JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh new <owner/repo> <base-b
 JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh status <session-id>
 JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh message <session-id> "Also update print page..."
 JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh approve <session-id>
+
+# Read the plan before approving, see what Jules ran, download the diff without a PR:
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh plan <session-id>
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh activities <session-id> 50
+JULES_API_KEY=... bash <skill-dir>/scripts/jules_api.sh patch <session-id> J03.patch
 ```
 
-When using the `jules` CLI without auto-PR, use the gap to review before anything reaches GitHub:
-1. `jules remote list --session` shows the status. `jules remote pull --session <id> > J03.patch` (**without** `--apply`) only downloads the diff.
+When a session finishes without a PR (the `jules` CLI, or `jules_api.sh new ... --no-auto-pr`), use the gap to review before anything reaches GitHub:
+1. `jules remote list --session` shows the status. `jules remote pull --session <id> > J03.patch` (**without** `--apply`), or `jules_api.sh patch <id> J03.patch`, only downloads the diff.
 2. Check each patch's files against its allowlist (`grep '^diff --git'`).
 3. Apply the whole wave **together** on a scratch worktree from the base (`git worktree add --detach <scratch> origin/<base>`, link `node_modules` with a junction or symlink, `git apply` each patch). Run tsc, lint and the tests once, and judge them by their own exit codes. A clean combined run proves the wave is conflict-free and green as a whole.
 4. Give the user a list: which sessions to publish as they are, and for the rest, send the follow-up via `jules_api.sh message <id> ...` (or give the exact English follow-up text to paste into the session web UI). Then review the resulting PRs with the script, and merge as in section 6.
@@ -182,7 +202,7 @@ When using the `jules` CLI without auto-PR, use the gap to review before anythin
 Merge **one PR at a time**. Each merge makes the rest stale, and tests from one PR can fail on another PR's code even when they share no file (a "no email address in the repo" test from one PR failed on a test fixture another PR had added). So for every PR, in order:
 
 1. `git fetch` first. A stale `origin/<base>` makes a branch look up to date when it isn't.
-2. In a scratch worktree: check out the PR branch and `git merge origin/<base>` (merge, never rebase, so Jules can keep working on the branch).
+2. In a scratch worktree: check out the PR branch and `git merge origin/<base>` (merge, never rebase, so Jules can keep working on the branch). If Jules pushes meanwhile (CI Fixer, a comment reply), your push is rejected or the head changes; `merge_queue.sh` stops, and you start that PR again.
 3. Run the **whole** test suite there. Judge it by the test command's own exit code, never through a pipe: `pytest -q | tail -1 && git push` pushed a red branch once, because the pipe's status is `tail`'s.
 4. Push to the PR branch, wait for **every** CI job to conclude `success` (`gh pr checks <n> --watch`, then check each job; partly green during an Actions outage is not green).
 5. Make sure the PR body says `Closes #<the dispatched issue>` (Jules often leaves it out, or names the wrong issue), mark it ready if it is a draft, and merge with the head you tested: `gh pr merge <n> --merge --match-head-commit <sha>`.
@@ -223,3 +243,7 @@ Run it in the background. When the wave is done: fast-forward the user's local b
 | Merged while **CI showed partial green**, and once with **every job failing** | Merge only when every job's conclusion is `success`. Run the script even on trivial PRs |
 | **Every job "failed" in about 2 seconds with 0 steps**, on every PR, even a docs-only one: Actions never started because of a billing or spending-limit problem on a private repo | When all jobs fail at once, read the job annotation (`gh api repos/<r>/check-runs/<job-id>/annotations`) before blaming the code. Billing is the user's to fix, and nothing merges until CI really runs |
 | A follow-up fix needs a file **outside the original allowlist**, and Jules would STOP on its own rule | Name the extra file explicitly in the follow-up comment |
+| PR says **"all tests pass"**, but the VM couldn't install or run them | A repo setup script that runs the verify commands (section 4); check `bash exit` lines in `jules_api.sh activities` |
+| A **focused test** (`it.only`, `describe.only`) makes the suite green by running one test | Script: `.only(` pattern. Review step 2 |
+| **You and Jules push to the same PR branch** (CI Fixer or a comment reply runs while you fix or merge) | One writer at a time (section 5). `merge_queue.sh` merges only the head it tested (`--match-head-commit`) |
+| A session **waits forever** on a question nobody saw | `jules_api.sh status` prints the question in `AWAITING_USER_FEEDBACK`; answer with `message` |
