@@ -209,6 +209,7 @@ exit5=$?
 set -e
 
 assert_exit 0 "$exit5" "Scenario 5 with KEEP=1 should exit 0"
+assert_contains "$output5" "✅ noop" "Scenario 5 output should report success for step noop"
 
 wt_dir="$(find "$scratch" -maxdepth 1 -type d -name "wt-*" | head -n 1)"
 if [ -n "$wt_dir" ] && [ -d "$wt_dir" ]; then
@@ -263,6 +264,8 @@ set -e
 
 assert_exit 0 "$exit7_a" "Scenario 7 run 1 should exit 0"
 assert_exit 0 "$exit7_b" "Scenario 7 run 2 should exit 0"
+assert_contains "$output7_a" "✅ noop" "Scenario 7 run 1 output should report success"
+assert_contains "$output7_b" "✅ noop" "Scenario 7 run 2 output should report success"
 
 wt_count="$(find "$scratch" -maxdepth 1 -type d -name "wt-*" | wc -l)"
 if [ "$wt_count" -eq 2 ]; then
