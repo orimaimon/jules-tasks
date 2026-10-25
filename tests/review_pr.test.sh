@@ -90,13 +90,14 @@ OUT1="$(NO_GH=1 BASE=main bash "$REVIEW_PR" 7 "$TMPDIR/allowlist7.txt" 2>&1)"
 EXIT1=$?
 set -e
 
-assert_contains "$OUT1" "outside allowlist: notes.txt"
-assert_contains "$OUT1" "outside allowlist: tests/test_a.py" # BUG?: review_pr.sh flags deleted file tests/test_a.py as outside allowlist because git diff --name-only includes deleted files
-assert_contains "$OUT1" "test files deleted"
-assert_contains "$OUT1" "asserts dropped"
+assert_contains "$OUT1" "❌ outside allowlist: notes.txt"
+# Intended: deleting a file outside the allowlist is a change to a file the task may not touch.
+assert_contains "$OUT1" "❌ outside allowlist: tests/test_a.py"
+assert_contains "$OUT1" "❌ test files deleted"
+assert_contains "$OUT1" "❌ asserts dropped"
 assert_contains "$OUT1" ".only"
 assert_contains "$OUT1" "while True"
-assert_contains "$OUT1" "empty commit(s)"
+assert_contains "$OUT1" "⚠️  empty commit(s)"
 assert_count "$OUT1" "NOT CHECKED (no gh)" 2
 assert_exit 1 "$EXIT1"
 
@@ -126,9 +127,9 @@ OUT2="$(bash "$REVIEW_PR" 7 "$TMPDIR/allowlist7.txt" 31 2>&1)"
 EXIT2=$?
 set -e
 
-assert_contains "$OUT2" "closes multiple issues"
-assert_contains "$OUT2" "expected PR to close only #31"
-assert_contains "$OUT2" "test: FAILURE"
+assert_contains "$OUT2" "⚠️  closes multiple issues"
+assert_contains "$OUT2" "❌ expected PR to close only #31"
+assert_contains "$OUT2" "❌ test: FAILURE"
 assert_exit 1 "$EXIT2"
 
 echo "--- Run 3: Clean PR 5 with fake gh ---"
