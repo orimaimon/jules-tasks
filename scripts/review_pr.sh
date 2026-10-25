@@ -3,7 +3,7 @@
 #   bash review_pr.sh <PR#> [allowed-files.txt] [expected-issue#]
 # allowed-files.txt: one path or glob per line (e.g. src/proxy.ts, tests/*.test.mjs, src/lib/**).
 # Requires: git, node, and gh (authenticated) for the PR metadata. Run from inside the repository. JS/TS and Python.
-# Without gh (e.g. a cloud session that has only git and GitHub MCP tools), or with NO_GH=1, it runs the
+# Without gh, when gh fails (e.g. GraphQL blocked in a cloud session), or with NO_GH=1, it runs the
 # mechanical checks on the diff and skips title, Closes and CI: check those with your GitHub tools.
 # BASE (default: the repo's default branch) names the base branch in that mode.
 # It fetches refs/pull/<n>/head into a local ref and reads; it never checks out, commits or pushes.
@@ -24,6 +24,13 @@ jget() { node -e "const j=JSON.parse(process.argv[1]);const f=new Function('j','
 
 NO_GH="${NO_GH:-0}"
 if [ "$NO_GH" != "1" ] && ! command -v gh >/dev/null 2>&1; then NO_GH=1; fi
+if [ "$NO_GH" != "1" ]; then
+  JSON="$(gh pr view "$PR" --json number,title,body,state,isDraft,baseRefName,headRefName,headRefOid,additions,deletions,changedFiles,files,statusCheckRollup,author,closingIssuesReferences 2>&1)" || {
+    # gh can be installed but unusable (seen: GraphQL blocked with HTTP 403 in a cloud session). Keep reviewing.
+    echo "  ⚠️  gh pr view failed, falling back to the no-gh checks: $(echo "$JSON" | head -1 | cut -c1-160)"
+    WARN=$((WARN+1)); NO_GH=1
+  }
+fi
 if [ "$NO_GH" = "1" ]; then
   BASE="${BASE:-$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')}"
   BASE="${BASE:-main}"
@@ -31,8 +38,6 @@ if [ "$NO_GH" = "1" ]; then
   echo "  ⚠️  NOT CHECKED (no gh): title, author, draft state, \"Closes #N\"${EXP_ISSUE:+ (expected #$EXP_ISSUE)}, Jules session state, CI. They did not pass; check them with your GitHub tools (pull_request_read get / get_check_runs)."
   WARN=$((WARN+1))
 else
-  JSON="$(gh pr view "$PR" --json number,title,body,state,isDraft,baseRefName,headRefName,headRefOid,additions,deletions,changedFiles,files,statusCheckRollup,author,closingIssuesReferences 2>&1)" \
-    || { echo "gh pr view failed: $JSON (NO_GH=1 runs the diff checks without it)"; exit 2; }
   BASE="$(jget 'j.baseRefName')"
   HEAD_BRANCH="$(jget 'j.headRefName')"
   HEAD_SHA="$(jget '(j.headRefOid||"").slice(0,7)')"

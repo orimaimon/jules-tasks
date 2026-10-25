@@ -1,6 +1,6 @@
 # Reviewing and merging without `gh`
 
-Some sessions have `git` (through a proxy) and GitHub MCP tools, but no `gh` CLI, for example a cloud session. `merge_queue.sh` needs `gh`, and `review_pr.sh` needs it for title, `Closes` and CI. Nothing in the review or merge rules changes; only the tools do. Don't skip a check because its script can't run: run the same check another way.
+Some sessions have `git` (through a proxy) and GitHub MCP tools, but no usable `gh` CLI, for example a cloud session: `gh` may be missing, or installed but blocked (`gh pr view` returned HTTP 403 because GitHub GraphQL is not available there; `review_pr.sh` then falls back to the no-`gh` checks by itself). `merge_queue.sh` needs `gh`, and `review_pr.sh` needs it for title, `Closes` and CI. Nothing in the review or merge rules changes; only the tools do. Don't skip a check because its script can't run: run the same check another way.
 
 Tool names below are the GitHub MCP server's (`pull_request_read`, `update_pull_request`, `merge_pull_request`); other GitHub integrations have equivalents.
 
