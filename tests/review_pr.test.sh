@@ -132,6 +132,20 @@ assert_contains "$OUT2" "❌ expected PR to close only #31"
 assert_contains "$OUT2" "❌ test: FAILURE"
 assert_exit 1 "$EXIT2"
 
+echo "--- Run 2b: PR 7 with a gh that fails (GraphQL blocked) ---"
+FAILING_GH_DIR="$(mktemp -d)"
+TMPDIRS+=("$FAILING_GH_DIR")
+printf '#!/usr/bin/env bash\necho "HTTP 403: GitHub GraphQL is not available" >&2\nexit 1\n' > "$FAILING_GH_DIR/gh"
+chmod +x "$FAILING_GH_DIR/gh"
+set +e
+OUT2B="$(PATH="$FAILING_GH_DIR:$PATH" BASE=main bash "$REVIEW_PR" 7 "$TMPDIR/allowlist7.txt" 2>&1)"
+EXIT2B=$?
+set -e
+assert_contains "$OUT2B" "falling back to the no-gh checks"
+assert_contains "$OUT2B" "❌ outside allowlist: notes.txt"
+assert_count "$OUT2B" "NOT CHECKED (no gh)" 2
+assert_exit 1 "$EXIT2B"
+
 echo "--- Run 3: Clean PR 5 with fake gh ---"
 export GH_JSON='{
   "number": 5,
