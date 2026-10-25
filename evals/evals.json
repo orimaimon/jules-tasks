@@ -93,10 +93,10 @@
         "evals/files/merge-wave/job-details.txt"
       ],
       "expectations": [
-        "Does not merge any of the PRs and does not suggest merging around the failed checks",
+        "Does not merge now; any merge before Actions runs is conditioned on the user's explicit approval for this wave plus local CI green on the merged wave and a tree check, never offered unconditionally",
         "Identifies the pattern: every job failed within seconds with 0 steps, even on a docs-only PR, so the code is not the cause",
         "Names billing or a spending limit on the private repo as the likely cause and suggests reading the job annotation (for example via the check-runs annotations API)",
-        "Says fixing billing is the user's job and that nothing merges until CI really runs; local_ci.sh may be offered for confidence but not as a substitute for merging",
+        "Says fixing billing is the user's job and that the default is to wait for CI; if local_ci.sh is offered, it is as part of that explicit exception, not a plain substitute",
         "Describes the merge that follows as serial: one PR at a time in the order 12, 14, 13, with the base merged in and the tests rerun before each merge (or names merge_queue.sh)"
       ]
     },
@@ -129,6 +129,56 @@
         "Either waits for Jules to finish and then puts the fix on top of Jules's latest head by merging (no rebase or force-push), or sends the fix to Jules as a specific PR comment; does not do both at once",
         "Re-runs the review on the new head (Jules's CI Fixer commit may change more than lint) before merging",
         "Merges only after every CI job concludes success, using the tested head SHA (--match-head-commit or merge_queue.sh)"
+      ]
+    },
+    {
+      "id": 8,
+      "prompt": "Review and merge Jules's PRs from wave S4 in evals/files/no-gh/session.md. This session has no gh. Tell me exactly what you will run for each PR, in order.",
+      "expected_output": "Does not skip the review because gh is missing: fetches the PR refs with git and runs the mechanical diff checks (review_pr.sh with NO_GH=1, or the same checks by hand) against each allowlist; gets title/body/Closes and CI from pull_request_read; merges serially with the base merged in and tests by exit code; marks the draft ready (draft=false) before merge_pull_request with expectedHeadSha; checks the tree after merging.",
+      "files": [
+        "evals/files/no-gh/session.md"
+      ],
+      "expectations": [
+        "Does not skip or shorten the review because gh is missing",
+        "Fetches each PR with git (refs/pull/<n>/head) and runs the mechanical diff checks against the allowlist: review_pr.sh with NO_GH=1, or allowlist, risky patterns and test/assert counts by hand",
+        "Gets the PR body / Closes #N and the CI check runs from the GitHub tools (pull_request_read get / get_check_runs) instead of gh",
+        "Merges one PR at a time in the order 231, 232, with the base merged in and the tests run by their own exit code before each merge",
+        "Marks each draft ready (update_pull_request draft=false) before merging, because the merge API refuses drafts",
+        "Merges with merge_pull_request and expectedHeadSha set to the tested or reviewed SHA",
+        "Checks after merging that the base's tree equals the tested tree (git rev-parse origin/master^{tree})"
+      ]
+    },
+    {
+      "id": 9,
+      "prompt": "Jules's PR #218 has 4 commits and 3 of them are from CI Fixer. Something looks off. Should I close it and dispatch again? Details in evals/files/ci-fixer-noise/pr-218.txt.",
+      "expected_output": "Recognizes the three CI Fixer commits as empty retries (git diff 59dc2c9 32d32d5 is empty), not a revert, so the PR is the first commit; doesn't close or 'rescue' it; reviews 59dc2c9; identifies Actions not starting (all jobs, all PRs, 2s, 0 steps; logs 404) as billing; suggests turning CI Fixer off; no merge until CI runs or the explicit Actions-down exception.",
+      "files": [
+        "evals/files/ci-fixer-noise/pr-218.txt"
+      ],
+      "expectations": [
+        "Identifies the three CI Fixer commits as empty (git diff 59dc2c9 32d32d5 prints nothing), so they are noise and not a revert",
+        "Does not recommend closing and re-dispatching, and does not try to rescue or revert anything; the work is in 59dc2c9 and gets a normal review",
+        "Identifies that Actions never started (all jobs on all PRs failed in about 2 seconds with no steps), so CI says nothing about the code, and relies on that pattern since the job log returns 404",
+        "Names billing or a spending limit on the private repo as the likely cause and says that is the user's to fix",
+        "Suggests turning CI Fixer off while Actions is broken",
+        "Does not merge on this CI; merging before Actions works needs the user's explicit approval for this wave plus local CI green and a tree check"
+      ]
+    },
+    {
+      "id": 10,
+      "prompt": "Write the Jules prompt for J07 from evals/files/spec-check/PLAN.md. The repo files it touches are in evals/files/spec-check/src/.",
+      "expected_output": "Before writing the prompt, checks the spec against the repo: sees that dispatchWeeklyReportSchema.assignments is .min(1), which makes a week with no deficiencies impossible to dispatch, and raises it (schema change put into the task's files, or a product question to the user) instead of letting Jules build around it; sees resolveEffectiveFunctionPositions already exists and tells Jules to reuse it; the prompt has the allowlist (including the schema file if changed), the STOP clause, verify commands, a test for the empty week, and Closes #240.",
+      "files": [
+        "evals/files/spec-check/PLAN.md",
+        "evals/files/spec-check/src/lib/schemas/weekly-report.ts",
+        "evals/files/spec-check/src/lib/positions.ts"
+      ],
+      "expectations": [
+        "Notices that dispatchWeeklyReportSchema requires at least one assignment (.min(1)), which contradicts 'every week must be dispatched, including weeks with no deficiencies'",
+        "Resolves it before dispatch: either puts the schema change explicitly into the task (schema file in the allowlist, with the exact change) or raises it to the user as a decision, rather than leaving Jules to work around it",
+        "Tells Jules to reuse the existing resolveEffectiveFunctionPositions instead of writing a new commander lookup",
+        "The prompt includes a test case for a week with no deficiencies being dispatched",
+        "The prompt lists the exact files Jules may change, has a STOP-and-explain clause, the verify commands, and requires Closes #240"
       ]
     }
   ]

@@ -22,6 +22,7 @@ The job is therefore: pick tasks that survive the gap, write prompts that close 
 - [docs/repo-setup.md](docs/repo-setup.md): one-time setup of a repository for Jules (`AGENTS.md`, setup script, settings that change how a wave behaves). Read before the first wave in a repo.
 - [docs/cli-and-api.md](docs/cli-and-api.md): dispatching and steering sessions from the terminal (`jules_api.sh`, the `jules` CLI), plan approval, and reviewing a whole wave as patches before anything reaches GitHub.
 - [docs/bug-classes.md](docs/bug-classes.md): the bugs Jules keeps producing that its own tests don't catch. Read during every review (step 4 in section 5).
+- [docs/without-gh.md](docs/without-gh.md): reviewing and merging when there is no `gh` CLI (a cloud session with only `git` and GitHub tools).
 - [docs/failure-modes.md](docs/failure-modes.md): every failure seen so far and the guard for it. Read when something unexpected happens, and add a row when you learn a new one.
 - `scripts/`: `review_pr.sh` (read-only mechanical review), `merge_queue.sh` (serial merge), `jules_api.sh` (REST client), `local_ci.sh` (CI stand-in when Actions can't run). Run them; don't read them into context.
 - `evals/`: test scenarios for this skill (see `evals/README.md`).
@@ -29,6 +30,8 @@ The job is therefore: pick tasks that survive the gap, write prompts that close 
 ---
 
 ## 1. Jules or a local agent?
+
+Plan files are usually gitignored. If you don't have the plan, ask the user for it before triage instead of reconstructing it from issues and commits.
 
 Send to **Jules** when all of these hold:
 - The change fits in one PR that a reviewer can read in a few minutes (roughly ≤ 10 files, one concern).
@@ -58,7 +61,8 @@ Jules is free and parallel, so the bottleneck is merge conflicts and review time
 
 - **Disjoint files.** Each task lists the exact files it may change, and no two tasks in the same wave share a file. If they must share one, put the second task in a later wave that starts only after the first is merged.
 - **Depend on contracts, not on unmerged code.** Two tasks can run in parallel even when one consumes the other's output, if the prompt fixes the interface: "input: a wide DataFrame, index = trading days, columns = tickers". Then check at review time that both sides honor it (one wave had a producer returning plain dates where the consumer expected a `DatetimeIndex`).
-- **Order against local work.** Jules branches from GitHub's default branch. If a local agent is about to change the same files, merge the Jules PR first, or have the local agent merge `origin/<default>` at its start, and say which in both prompts.
+- **Order against local work.** Jules branches from GitHub's default branch. Keep files a local session is about to edit out of the wave: Jules writes the module in a new file, and the local session wires it in. If both must touch a file, merge the Jules PR first, or have the local agent merge `origin/<default>` at its start, and say which in both prompts.
+- **Product decisions before prompts.** List the cases the plan leaves open (a week with nothing to report, records from before a rule existed, an export's date range) and ask the user. Jules guesses otherwise, and the guess comes back as code.
 - **One concern per PR.** If the prompt says "also", it is probably a second task.
 - **Name the wave and the merge order** in the plan. The reviewer follows it.
 - **Size the wave to the plan's concurrent-task limit** (see [docs/repo-setup.md](docs/repo-setup.md)). Extra tasks queue.
@@ -108,6 +112,8 @@ Also:
 - **No secrets, no personal data, no real user identifiers** in prompts or issues. They go to a third-party service, and issues in a public repo are public. If the plan or notes contain a key, leave it out and describe where the code reads it from.
 - **Pure function plus named test cases** make the result checkable without running the app.
 - **A mechanical acceptance check** tells Jules what "done" means, and the reviewer runs it.
+- **When two rules interact, give exact fixture values.** "Only positions of the same level" plus a test for "an inherited position" contradict each other unless the prompt says the custom position has `level: "BATTALION"`. Spell out the fixture, or Jules writes a test that can't pass.
+- **No backticks inside inline code** in an issue body: `` `${a}: ${b}` `` breaks the markdown. Write placeholders such as `"<label>: <detail>"`, or use a fenced block.
 
 ---
 
@@ -121,11 +127,13 @@ First time in this repository? Do [docs/repo-setup.md](docs/repo-setup.md) first
   - run the helpers the prompt relies on (a label formatter rendered `1e9` as "1000M"; the fix had to go into the prompt, not into the helper, because saved data stores those labels);
   - read the tests that enforce project rules, and make sure your wording passes them (a "Hebrew for every label" test rejects an English word that the prompt asked for);
   - think through what "everything else comes from X" really includes (one prompt asked for all remaining columns from a days-old snapshot, which pulled in stale technical columns that would fire false signals next to a fresh price);
-  - when a fact about an external source is uncertain (a unit, a field name, an endpoint), check it with one tiny live request if the project allows it, or tell Jules to leave it as a constant to be checked before wiring.
+  - when a fact about an external source is uncertain (a unit, a field name, an endpoint), check it with one tiny live request if the project allows it, or tell Jules to leave it as a constant to be checked before wiring;
+  - read the schemas and validators the task goes through: a `.min(1)` on a report's items would have left a week with no defects stuck forever, and Jules would have built it exactly so;
+  - search for the helpers the task needs: if one exists (`resolveEffectiveFunctionPositions` did), name it in the prompt so Jules reuses it instead of writing a second one.
 
 **How to send it** (one issue or session per task; title `[Area] outcome`):
 - **Pasted into jules.google.com:** one fenced block per task in the plan file.
-- **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block if they are not in `AGENTS.md`. Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
+- **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block if they are not in `AGENTS.md`. Create the issue **without** the label, edit its own number into the body (`PR description must include Closes #<N>`), and only then add the label: Jules starts the moment the label lands. In one wave this gave all 7 PRs the right `Closes #N`. Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
 - **From the terminal** with `scripts/jules_api.sh` (opens a PR automatically, can require plan approval, answers questions) or the `jules` CLI (no PR; review the patch first). Commands and the patch-review workflow: [docs/cli-and-api.md](docs/cli-and-api.md).
 - For a **risky task** (security path, shared file, a spec you are unsure of), require plan approval and check the plan's files and steps before approving. A wrong plan costs one message; a wrong PR costs a review and a re-dispatch.
 
@@ -161,6 +169,8 @@ Review #<n>:
 bash <skill-dir>/scripts/review_pr.sh <PR#> [allowed-files.txt]
 ```
 
+No `gh` in this session? The script still runs the diff checks (`NO_GH=1`); get the title, `Closes`, draft state and CI from your GitHub tools ([docs/without-gh.md](docs/without-gh.md)).
+
 It reports: an empty diff (and a self-reverting commit pair); files outside the allowlist; sensitive files (package/lock files, CI, requirements, launchers, `CLAUDE.md`, `AGENTS.md`); risky patterns in added lines (`npx`, `tsx`, `eslint-disable`, `: any`, skips, `.only`, `xfail`, unbounded loops, swallowed errors, a key in a URL, `verify=False`); tests that sleep for real or reach the network; the change in assert and test counts (JS/TS and Python); a missing or suspicious `Closes #N`; how far behind the base it is; and the conclusion of every CI job. If every job failed within seconds with no steps, read [docs/failure-modes.md](docs/failure-modes.md) before blaming the code.
 
 Then by hand, what a script can't see:
@@ -191,9 +201,14 @@ Merge #<n>:
 - [ ] Pushed to the PR branch; every CI job concluded success
 - [ ] PR body says `Closes #<the dispatched issue>`; marked ready
 - [ ] `gh pr merge <n> --merge --match-head-commit <tested sha>`
+- [ ] Tree check: `git rev-parse origin/<base>^{tree}` equals `git rev-parse <tested sha>^{tree}`
 ```
 
 Why each line: `pytest -q | tail -1 && git push` pushed a red branch once, because the pipe's status is `tail`'s. Partly green during an Actions outage is not green. Jules often omits `Closes #N` or names the wrong issue. If Jules pushes meanwhile (CI Fixer, a comment reply), your push is rejected or the head changes; start that PR again.
+
+The tree check proves in one line that what landed is exactly what you tested. Without `gh`, do the same steps with your GitHub tools ([docs/without-gh.md](docs/without-gh.md)): mark the draft ready first, because the merge API refuses a draft.
+
+**When GitHub Actions can't run** (billing or an outage: every job on every PR fails within seconds with no steps), the default is to wait. Merge before it runs only with all three: the user's explicit approval **for this wave** (never a standing default), `local_ci.sh` or the same steps green on the serially merged wave (a copy of the steps file committed to the project, so any session can run it), and the tree check after the merges. If a tree differs, stop and re-test. Say in each PR what replaced CI, and turn CI Fixer off until Actions works.
 
 The bundled script does exactly this and stops at the first problem:
 
@@ -201,4 +216,7 @@ The bundled script does exactly this and stops at the first problem:
 TEST_CMD="python -m pytest tests/ -q" bash <skill-dir>/scripts/merge_queue.sh 92 90 93 91
 ```
 
-Run it in the background. When the wave is done: fast-forward the user's local base branch (only if it is clean), remove scratch worktrees, cancel any scheduled check-in, and record in the project notes what was merged and what was learned. A new kind of failure also gets a row in [docs/failure-modes.md](docs/failure-modes.md).
+Run it in the background. When the wave is done:
+- fast-forward the user's local base branch (only if it is clean), remove scratch worktrees, cancel any scheduled check-in;
+- write a **self-contained prompt for the next local session**: `git pull` first, the API of each new module (names, arguments, return shapes), and the decisions made during the wave. The local plan file doesn't update itself, so without this the next session works from a stale plan;
+- record in the project notes what was merged and what was learned. A new kind of failure also gets a row in [docs/failure-modes.md](docs/failure-modes.md).

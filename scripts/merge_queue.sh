@@ -84,6 +84,14 @@ for n in "$@"; do
   git merge-base --is-ancestor "origin/$BASE" "$sha" || { echo "#$n fell behind $BASE meanwhile, stopping"; exit 1; }
   check_ci "$n" || { echo "#$n: not every check passed, stopping"; exit 1; }
   gh pr ready "$n" > /dev/null 2>&1 || true            # Jules leaves its PRs as drafts
-  gh pr merge "$n" $MERGE_FLAG --match-head-commit "$sha" && echo "merged #$n" || { echo "merge of #$n failed"; exit 1; }
+  gh pr merge "$n" $MERGE_FLAG --match-head-commit "$sha" || { echo "merge of #$n failed"; exit 1; }
+  # Proof that what landed is exactly what was tested: the base's tree must equal the tested head's tree
+  # (true for merge, squash and rebase, because the head already contains the base).
+  git fetch -q origin "$BASE"
+  if [ "$(git rev-parse "origin/$BASE^{tree}")" = "$(git rev-parse "$sha^{tree}")" ]; then
+    echo "merged #$n (tree check: $BASE == tested head ${sha:0:7})"
+  else
+    echo "merged #$n, but $BASE's tree differs from the tested head ${sha:0:7}: someone else pushed to $BASE? stopping"; exit 1
+  fi
 done
 echo "queue done"

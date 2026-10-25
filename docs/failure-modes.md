@@ -7,7 +7,8 @@ Every row happened in a real wave. When something unexpected happens, look here 
 - Prompt and spec gaps: production assumptions, unit guesses, slow code, wrong spec followed literally
 - Tests: deleted or loosened tests, focused tests, "all tests pass" without running
 - Merging: stale base, green alone but red together, pipe hiding a failure, partial or failed CI, billing
-- Process: duplicate dispatch, two writers on one branch, a session waiting on a question
+- Process: duplicate dispatch, two writers on one branch, a session waiting on a question, no `gh` in the session, CI steps only on one machine
+- Spec checks: a schema that blocks a valid case, an existing helper, interacting rules, issue-body formatting
 
 | What happened | Guard |
 |---|---|
@@ -31,9 +32,16 @@ Every row happened in a real wave. When something unexpected happens, look here 
 | PR body **closes the wrong number** (the old closed PR of a re-dispatched task instead of the new issue) | Script: `Closes` check. Fix it with `gh pr edit --body-file` before merging |
 | A fix applied to the API but **not to the sibling page** that loads the same data (a print page still put the secret token in a QR) | List every place that loads the entity (`grep` for the model) in the prompt's Files and in review |
 | Merged while **CI showed partial green**, and once with **every job failing** | Merge only when every job's conclusion is `success`. Run the script even on trivial PRs |
-| **Every job "failed" in about 2 seconds with 0 steps**, on every PR, even a docs-only one: Actions never started because of a billing or spending-limit problem on a private repo | When all jobs fail at once, read the job annotation (`gh api repos/<r>/check-runs/<job-id>/annotations`) before blaming the code. Billing is the user's to fix, and nothing merges until CI really runs |
+| **Every job "failed" in about 2 seconds with 0 steps**, on every PR, even a docs-only one: Actions never started because of a billing or spending-limit problem on a private repo | When all jobs fail at once, read the job annotation (`gh api repos/<r>/check-runs/<job-id>/annotations`) before blaming the code. Billing is the user's to fix. If the job log returns 404 through the API, rely on the pattern: all jobs, all PRs, about 2 seconds. Nothing merges until CI runs, except under the Actions-down exception (SKILL.md §6: explicit approval for this wave, local CI green on the merged wave, tree check) |
 | A follow-up fix needs a file **outside the original allowlist**, and Jules would STOP on its own rule | Name the extra file explicitly in the follow-up comment |
 | PR says **"all tests pass"**, but the VM couldn't install or run them | A repo setup script that runs the verify commands ([repo-setup.md](repo-setup.md)); check `bash exit` lines in `jules_api.sh activities` |
 | A **focused test** (`it.only`, `describe.only`) makes the suite green by running one test | Script: `.only(` pattern. SKILL.md §5 step 3 |
 | **You and Jules push to the same PR branch** (CI Fixer or a comment reply runs while you fix or merge) | One writer at a time (SKILL.md §5). `merge_queue.sh` merges only the head it tested (`--match-head-commit`) |
 | A session **waits forever** on a question nobody saw | `jules_api.sh status` prints the question in `AWAITING_USER_FEEDBACK`; answer with `message` |
+| While Actions was down, **CI Fixer pushed 3 empty retry commits** (same message, about 2 minutes apart) to 5 of 7 PRs in one wave; the other 2 got none, cause unknown (seen once, don't generalize) | `review_pr.sh` flags empty commits. `git diff <first-commit> <head>` empty means the extra commits are noise: review the real commit, don't close or "rescue" the PR. Turn CI Fixer off while Actions is broken |
+| A **schema in the task's path blocked a valid case**: `.min(1)` on a weekly report's items meant a week with no defects could never be dispatched, and the prompt would have had Jules build exactly that | Read the schemas and validators the task goes through before dispatch (SKILL.md §4); put the schema change into the task's files explicitly |
+| A prompt would have **re-specified a helper that already existed** (`resolveEffectiveFunctionPositions`) | Search for the helpers a task needs before writing it; name the existing one in the prompt |
+| **Two rules in one prompt contradicted each other in the tests** ("same level only" plus "an inherited custom position") | Give the fixture's exact field values when rules interact (`level: "BATTALION"`) (SKILL.md §3) |
+| **A nested backtick broke the issue body** (`` `${a}: ${b}` `` inside inline code) | Placeholders like `"<label>: <detail>"`, or a fenced block (SKILL.md §3) |
+| **No `gh` in a cloud session**, so `review_pr.sh` and `merge_queue.sh` couldn't run as they were | `review_pr.sh` runs the diff checks without `gh` and marks the rest NOT CHECKED; merge with the GitHub tools ([without-gh.md](without-gh.md)) |
+| The **CI steps file lived only on one machine** (`references/`), so a cloud session rebuilt the steps from the workflow file | Commit a secret-free copy of the steps file to the project repo (e.g. `scripts/ci-steps.sh`) |
