@@ -19,3 +19,4 @@ Jules's own tests don't catch these: it writes tests for the behavior it intende
 | **Fix applied in one place only** | A fix to the API, but the print page that loads the same data still put the secret token in a QR code | `grep` for the model/entity; every loader got the fix |
 | **Focused or skipped tests** | `.only`, `skip` or `xfail` that makes the suite green by running less | `review_pr.sh` flags them; none in the final diff unless the task asked |
 | **Docs and numbering slips** | Duplicated section numbers in docs | Read rendered docs once |
+| **Timing bugs tested sequentially** | A test for "two runs in the same second get separate directories" ran the runs one after another, so they rarely shared a second and the bug it guards against went unnoticed | Anything about concurrency or same-second timing is tested by starting the runs together (`&` and `wait`), and a mutation check confirms the test fails without the fix |
