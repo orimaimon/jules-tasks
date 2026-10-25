@@ -114,3 +114,5 @@ git clone https://github.com/orimaimon/jules-tasks.git ~/.gemini/config/skills/j
 ## Project-Specific Notes (Optional)
 
 You can keep project-specific context (ground rules, CI steps, past lessons) in a local `references/<project>.md` file inside the skill directory (`references/` is gitignored so private repo details stay local). See [`examples/project-notes-template.md`](./examples/project-notes-template.md) to get started.
+
+I am connected to the repository.
