@@ -37,7 +37,8 @@ NEED_PG=0; PG_IMAGE="postgres:16-alpine"; PG_DB="ci_test"; PG_USER="postgres"; P
 # shellcheck source=/dev/null
 source "$STEPS_FILE"
 
-STAMP="$(date +%Y%m%d-%H%M%S)"
+# The PID keeps two runs in the same second (a test suite, two terminals) from sharing a worktree and log dir.
+STAMP="$(date +%Y%m%d-%H%M%S)-$$"
 WT="$SCRATCH/wt-$STAMP"; RUN_DIR="$SCRATCH/run-$STAMP"; mkdir -p "$RUN_DIR"
 PG_NAME="local-ci-pg-$STAMP"
 REPO="$(git rev-parse --show-toplevel)" || exit 2
