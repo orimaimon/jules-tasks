@@ -256,10 +256,13 @@ step_noop() { return 0; }
 EOF
 
 set +e
-output7_a="$(cd "$clone" && KEEP=1 STEPS_FILE="$steps7" SCRATCH="$scratch" BASE=main bash "$LOCAL_CI" 2>&1)"
-exit7_a=$?
-output7_b="$(cd "$clone" && KEEP=1 STEPS_FILE="$steps7" SCRATCH="$scratch" BASE=main bash "$LOCAL_CI" 2>&1)"
-exit7_b=$?
+# Start both runs at the same time: run one after the other they rarely share a second,
+# and the same-second collision this scenario guards against would go unnoticed.
+(cd "$clone" && KEEP=1 STEPS_FILE="$steps7" SCRATCH="$scratch" BASE=main bash "$LOCAL_CI" > "$tmpdir/out7_a" 2>&1; echo $? > "$tmpdir/rc7_a") &
+(cd "$clone" && KEEP=1 STEPS_FILE="$steps7" SCRATCH="$scratch" BASE=main bash "$LOCAL_CI" > "$tmpdir/out7_b" 2>&1; echo $? > "$tmpdir/rc7_b") &
+wait
+output7_a="$(cat "$tmpdir/out7_a")"; exit7_a="$(cat "$tmpdir/rc7_a")"
+output7_b="$(cat "$tmpdir/out7_b")"; exit7_b="$(cat "$tmpdir/rc7_b")"
 set -e
 
 assert_exit 0 "$exit7_a" "Scenario 7 run 1 should exit 0"
