@@ -130,7 +130,8 @@ First time in this repository? Do [docs/repo-setup.md](docs/repo-setup.md) first
   - think through what "everything else comes from X" really includes (one prompt asked for all remaining columns from a days-old snapshot, which pulled in stale technical columns that would fire false signals next to a fresh price);
   - when a fact about an external source is uncertain (a unit, a field name, an endpoint), check it with one tiny live request if the project allows it, or tell Jules to leave it as a constant to be checked before wiring;
   - read the schemas and validators the task goes through: a `.min(1)` on a report's items would have left a week with no defects stuck forever, and Jules would have built it exactly so;
-  - search for the helpers the task needs: if one exists (`resolveEffectiveFunctionPositions` did), name it in the prompt so Jules reuses it instead of writing a second one.
+  - search for the helpers the task needs: if one exists (`resolveEffectiveFunctionPositions` did), name it in the prompt so Jules reuses it instead of writing a second one;
+  - for a test task, run the code under test once the way the tests will (back to back, in parallel, with the fakes they need). A dry run before one wave found a real bug in the script itself (two runs in the same second shared a directory), which would have made Jules's tests flaky; fix such bugs first, then dispatch.
 
 **How to send it** (one issue or session per task; title `[Area] outcome`):
 - **Pasted into jules.google.com:** one fenced block per task in the plan file.
