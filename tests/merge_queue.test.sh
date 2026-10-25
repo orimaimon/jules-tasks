@@ -141,7 +141,7 @@ git checkout -q main
 
 pr1_sha="$(git rev-parse origin/pr1)"
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(TEST_CMD="true" BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
@@ -180,7 +180,7 @@ git commit -q -m "add feature"
 git push -q origin pr1 2>/dev/null
 git checkout -q main
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(CI_CONCLUSION="FAILURE" TEST_CMD="true" BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
@@ -209,7 +209,7 @@ git commit -q -m "add feature"
 git push -q origin pr1 2>/dev/null
 git checkout -q main
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(CHANGED_FILES=0 TEST_CMD="true" BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
@@ -247,7 +247,7 @@ git push -q origin main 2>/dev/null
 
 pr1_orig_sha="$(git -C "$ORIGIN" rev-parse refs/heads/pr1)"
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(TEST_CMD="false" SKIP_GH_CI=1 BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
@@ -290,7 +290,7 @@ git push -q origin main 2>/dev/null
 
 old_main_sha="$(git -C "$ORIGIN" rev-parse refs/heads/main)"
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(TEST_CMD="true" SKIP_GH_CI=1 BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
@@ -332,7 +332,7 @@ git commit -q -m "add feature"
 git push -q origin pr1 2>/dev/null
 git checkout -q main
 
-> "$GH_LOG_FILE"
+: > "$GH_LOG_FILE"
 set +e
 OUT="$(FAKE_GH_TREE_MISMATCH=1 TEST_CMD="true" BASE=main bash "$MERGE_QUEUE" 1 2>&1)"
 EXIT_CODE=$?
