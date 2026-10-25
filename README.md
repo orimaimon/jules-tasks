@@ -48,36 +48,40 @@ Each stage below says what typically goes wrong, what the skill does about it, a
 
 ## What was tested
 
-**The skill itself (A/B evals).** Seven scenarios, each built on a failure documented in the skill, were run in fresh headless `claude -p` sessions, 3 times with the skill installed and 3 times without it. A separate judge session graded each answer against fixed expectations. The judge didn't know which condition produced the answer and had to quote evidence for each verdict. The skill was installed without its `evals/` folder, so runs couldn't read the expected answers.
+**The skill itself (A/B evals).** Ten scenarios, each built on a failure documented in the skill, were run in fresh headless `claude -p` sessions, 3 times with the skill installed and 3 times without it. A separate judge session graded each answer against fixed expectations. The judge didn't know which condition produced the answer and had to quote evidence for each verdict. The skill was installed without its `evals/` folder, so runs couldn't read the expected answers.
 
 | Scenario | With skill | Without |
 |---|---|---|
 | 1. Triage: Jules or local | 29/30 | 24/30 |
-| 2. Writing a wave of prompts from a plan | 25/27 | 14/27 |
-| 3. Reviewing a PR with planted bugs | 38/39 | 36/39 |
-| 4. "Empty" PR that reverted itself | 14/15 | 8/15 |
-| 5. Merging when CI never ran | 14/15 | 4/15 |
+| 2. Writing a wave of prompts from a plan | 25/27 | 15/27 |
+| 3. Reviewing a PR with planted bugs | 37/39 | 36/39 |
+| 4. "Empty" PR that reverted itself | 15/15 | 7/15 |
+| 5. Merging when CI never ran | 10/15 | 3/15 |
 | 6. A session waiting on a question | 12/12 | 9/12 |
-| 7. Fix and merge during a CI Fixer run | 14/18 | 4/18 |
-| **Total** | **94%** | **63%** |
+| 7. Fix and merge during a CI Fixer run | 15/18 | 5/18 |
+| 8. Review and merge without `gh` | 20/21 | 5/21 |
+| 9. Empty CI Fixer commits | 18/18 | 12/18 |
+| 10. A schema that blocks a valid case | 15/15 | 12/15 |
+| **Total** | **93%** | **61%** |
 
-The skill triggered in 21 of 21 runs where it was installed.
+The skill triggered in 30 of 30 runs where it was installed. Scenarios 8–10 come from a live wave (no `gh` in a cloud session, CI Fixer's empty commits, a `.min(1)` schema bug caught before dispatch).
 
 The evals also found problems that are now fixed:
 - **Short requests didn't load the skill.** "Jules's PR #61 … do what I asked" never triggered it, so the `description` was widened.
 - **A rebase instead of a merge.** One run rebased a Jules branch even after reading the skill, because the merge-never-rebase rule appeared only in the merge section.
 - **A missing step after a rescue.** Nothing said to review a rescued PR and wait for CI before merging it.
 
-Where the skill was weaker in the initial evals (and what was added after live testing):
+Where the skill was weaker in the evals (and what was added after live testing):
+- **Diagnosing CI that never ran (scenario 5):** dropped from 14/15 to 6/15 after the Actions-down exception was added to SKILL.md §6, because runs stopped opening `failure-modes.md` for the diagnosis. §6 now states the sign, the annotation check and that billing is the user's to fix: back to 10/15, and scenario 9 went from 15/18 to 18/18.
 - **Keeping two tasks that share a test file in separate waves:** 2/3 vs 3/3.
 - **Re-reviewing after Jules pushes a new head:** 1/3 vs 2/3. After observing CI Fixer push up to 3 retry commits after a PR opens, `SKILL.md` §5 and `review_pr.sh` now print the reviewed short SHA and check `jules remote list --session` for the session ID embedded in the branch name, warning if the session is still active (`In Progress` / `Planning`).
 
 **Caveats:**
 - 3 samples per condition is a small sample.
 - Three expectations were reworded after seeing answers, so they measure behavior rather than exact phrasing.
-- Scenarios 1–3 ran on a slightly earlier SKILL.md: before the wider description and the one added line.
+- Scenarios 5 and 9 were rerun with the skill after the §6 fix; the other numbers come from the run just before it.
 
-Treat 94% vs 63% as an estimate. Rerun it after every change:
+Treat 93% vs 61% as an estimate. Rerun it after every change:
 
 ```bash
 bash evals/harness/run_all.sh   # needs claude (logged in) and node; about $0.10-0.15 per run, plus grading
