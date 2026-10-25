@@ -1,0 +1,111 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint shell scripts
+        run: |
+          shopt -s nullglob globstar
+          files=(scripts/*.sh scripts/**/*.sh evals/harness/*.sh evals/harness/**/*.sh tests/*.sh tests/**/*.sh)
+          unique_files=($(printf "%s\n" "${files[@]}" | sort -u))
+          if [ ${#unique_files[@]} -eq 0 ]; then
+            echo "No shell scripts found to lint."
+          else
+            echo "Linting ${#unique_files[@]} file(s):"
+            printf ' - %s\n' "${unique_files[@]}"
+            for f in "${unique_files[@]}"; do
+              bash -n "$f"
+            done
+            shellcheck -S warning "${unique_files[@]}"
+          fi
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run test files
+        run: |
+          shopt -s nullglob globstar
+          tests=(tests/*.test.sh tests/**/*.test.sh)
+          unique_tests=($(printf "%s\n" "${tests[@]}" | sort -u))
+          if [ ${#unique_tests[@]} -eq 0 ]; then
+            echo "No test files found in tests/*.test.sh."
+            exit 0
+          fi
+          echo "Running ${#unique_tests[@]} test file(s):"
+          for t in "${unique_tests[@]}"; do
+            echo "Running $t..."
+            bash "$t"
+          done
+
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate evals JSON and files
+        run: |
+          node -e '
+          const fs = require("fs");
+          const path = require("path");
+
+          let missingCount = 0;
+
+          function validateEvalFile(filePath) {
+            console.log(`Parsing ${filePath}...`);
+            const content = fs.readFileSync(filePath, "utf8");
+            const data = JSON.parse(content);
+
+            const checkFiles = (filesList, sourceDesc) => {
+              if (Array.isArray(filesList)) {
+                for (const file of filesList) {
+                  if (!fs.existsSync(file)) {
+                    console.error(`Missing file: ${file} (referenced in ${sourceDesc})`);
+                    missingCount++;
+                  }
+                }
+              }
+            };
+
+            if (filePath.endsWith("evals.json")) {
+              if (Array.isArray(data.evals)) {
+                for (const item of data.evals) {
+                  checkFiles(item.files, `${filePath} eval ID ${item.id}`);
+                }
+              }
+            } else if (filePath.endsWith("trigger-evals.json")) {
+              if (Array.isArray(data)) {
+                data.forEach((item, idx) => {
+                  checkFiles(item.files, `${filePath} item #${idx + 1}`);
+                });
+              }
+            }
+          }
+
+          validateEvalFile("evals/evals.json");
+          validateEvalFile("evals/trigger-evals.json");
+
+          if (missingCount > 0) {
+            console.error(`Validation failed: ${missingCount} file(s) missing.`);
+            process.exit(1);
+          } else {
+            console.log("All evals JSON files parsed successfully and all referenced files exist.");
+          }
+          '
