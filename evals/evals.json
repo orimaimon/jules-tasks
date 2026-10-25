@@ -77,7 +77,7 @@
       "expectations": [
         "Identifies that commit c41d7e2 exactly reverts commit a93b1f0 (same message, net diff zero)",
         "Recommends reviewing a93b1f0 and, if it is good, running `git revert c41d7e2` on the PR branch instead of closing and re-dispatching",
-        "Does not trust the description: the fix is not in the PR until the revert is undone",
+        "Makes clear that, as the PR stands, the fix is not in the code (the net diff is zero) until the reverting commit is undone",
         "After restoring, asks for the normal review and every CI job concluding success before merging",
         "Mentions checking other places that load the same entity (the API was fixed in #49; any other page that builds the QR or share link)"
       ]
@@ -97,7 +97,7 @@
         "Identifies the pattern: every job failed within seconds with 0 steps, even on a docs-only PR, so the code is not the cause",
         "Names billing or a spending limit on the private repo as the likely cause and suggests reading the job annotation (for example via the check-runs annotations API)",
         "Says fixing billing is the user's job and that nothing merges until CI really runs; local_ci.sh may be offered for confidence but not as a substitute for merging",
-        "Describes the merge that follows: one PR at a time in the order 12, 14, 13, merging the base into each PR in a scratch worktree, running the whole suite by its own exit code, waiting for every job to succeed, and merging with --match-head-commit (or merge_queue.sh)"
+        "Describes the merge that follows as serial: one PR at a time in the order 12, 14, 13, with the base merged in and the tests rerun before each merge (or names merge_queue.sh)"
       ]
     },
     {
@@ -109,7 +109,6 @@
         "evals/files/session-waiting/wave.md"
       ],
       "expectations": [
-        "Explains that the session asked a question and is waiting for the user's answer, so it will not continue until answered",
         "Does not allow J02 to edit screener/config.py, because J04 in the same wave changes that file",
         "Gives a concrete answer that keeps J02 inside its file list (for example, monkeypatch the data dir in its tests, or wait and use data_dir() after J04 is merged)",
         "Gives the exact command or text to send, for example `jules_api.sh message 1187233409 \"...\"`",
