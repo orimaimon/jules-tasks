@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # Environment for child `claude -p` runs: drop variables that tie a child to the parent session
 # (set when the harness itself runs inside Claude Code), so each run is a fresh, separate session.
 ISOLATE=(env)
