@@ -1,0 +1,10 @@
+{
+  "sources": [
+    {
+      "name": "sources/github/owner/repo1"
+    },
+    {
+      "name": "sources/github/owner/repo2"
+    }
+  ]
+}

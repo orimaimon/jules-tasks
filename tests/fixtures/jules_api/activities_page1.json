@@ -1,0 +1,33 @@
+{
+  "nextPageToken": "tok/=1",
+  "activities": [
+    {
+      "createTime": "2025-01-01T10:00:00Z",
+      "originator": "agent",
+      "planGenerated": {
+        "plan": {
+          "id": "plan-123",
+          "steps": [
+            {
+              "index": 2,
+              "title": "Step Two",
+              "description": "Second step description"
+            },
+            {
+              "index": 1,
+              "title": "Step One",
+              "description": "First step description"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "createTime": "2025-01-01T10:01:00Z",
+      "originator": "agent",
+      "agentMessaged": {
+        "agentMessage": "How would you like to proceed?"
+      }
+    }
+  ]
+}
