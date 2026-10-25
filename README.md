@@ -68,9 +68,9 @@ The evals also found problems that are now fixed:
 - **A rebase instead of a merge.** One run rebased a Jules branch even after reading the skill, because the merge-never-rebase rule appeared only in the merge section.
 - **A missing step after a rescue.** Nothing said to review a rescued PR and wait for CI before merging it.
 
-Where the skill is still weaker than the baseline:
+Where the skill was weaker in the initial evals (and what was added after live testing):
 - **Keeping two tasks that share a test file in separate waves:** 2/3 vs 3/3.
-- **Re-reviewing after Jules pushes a new head:** 1/3 vs 2/3.
+- **Re-reviewing after Jules pushes a new head:** 1/3 vs 2/3. After observing CI Fixer push up to 3 retry commits after a PR opens, `SKILL.md` §5 and `review_pr.sh` now print the reviewed short SHA and check `jules remote list --session` for the session ID embedded in the branch name, warning if the session is still active (`In Progress` / `Planning`).
 
 **Caveats:**
 - 3 samples per condition is a small sample.
@@ -85,12 +85,17 @@ bash evals/harness/run_all.sh   # needs claude (logged in) and node; about $0.10
 
 Methodology and fixtures: [`evals/README.md`](./evals/README.md).
 
-**The scripts.**
-- `review_pr.sh` ran against a local fixture repository with a stubbed `gh`. It caught a file outside the allowlist, a deleted test file, dropped asserts, `.only`, a `while True` loop, swallowed errors and a junk file at the repo root.
-- `jules_api.sh` ran against a stubbed `curl` serving recorded API responses. That covered pagination, plan output, waiting-question output, patch download, unknown options and error bodies.
-- `merge_queue.sh` and `local_ci.sh` were syntax-checked, and their default-branch detection was tested.
-- `claude plugin validate` passes on the skill directory.
-- **Not tested against live services:** the real Jules API, and a real merge against GitHub.
+**The scripts (fixture + live end-to-end validation across 2 waves, 11 PRs).**
+- **Fixture tests:**
+  - `review_pr.sh` ran against a local fixture repository with a stubbed `gh`. It caught a file outside the allowlist, a deleted test file, dropped asserts, `.only`, a `while True` loop, swallowed errors and a junk file at the repo root.
+  - `jules_api.sh` ran against a stubbed `curl` serving recorded API responses. That covered pagination, plan output, waiting-question output, patch download, unknown options and error bodies.
+  - `claude plugin validate` passes on the skill directory.
+- **Live validation on a production TypeScript/Next.js/Prisma repository (2 waves, 11 PRs: `#194`–`#200` and `#205`–`#208`):**
+  - **2-step issue dispatch fixed hallucinated `Closes #N` from 7/7 down to 0/4:** In Wave 1 (`#194`–`#200`, dispatched with `Closes #<issue>` in the prompt at label creation time), **7 of 7 PRs** had a guessed `Closes #...` at the top (`#12`, `#123`, `#105`, `#S05`) alongside the bot's `Fixes #<real>` at the bottom—and in 2 of 7 PRs (`#195`, `#200`), the guessed number was an unrelated real issue in the repo. After updating `SKILL.md` §4 to create the issue without the `jules` label, replace `<issue>` with the real `#N`, and then run `gh issue edit <N> --add-label jules` (and adding `[expected-issue#]` + multi-issue detection to `review_pr.sh`), **0 of 4 PRs** in Wave 2 (`#205`–`#208`) had a wrong or duplicate issue reference.
+  - **Live self-revert caught by `review_pr.sh` (and root-caused to CI Fixer + billing failure):** On PR `#208`, GitHub Actions failed in 2s due to account billing. Watching `jules remote list --session` and `git log --stat` live showed that **CI Fixer** wakes a session up ~10s after PR creation for up to 3 retry cycles, pushing commits with the identical message—and on `#208`, retry commit `9d72d6c` reverted commit `82a1fad` (`-467` lines, net diff 0) before the final cycle (`0b58c84`) restored it. `review_pr.sh` caught the `EMPTY PR: 0 changed lines` + `3 commit(s) with net 0 diff (self-revert?)` immediately, and both `review_pr.sh` and `merge_queue.sh` now extract the session ID embedded in Jules branch names and check `jules remote list --session` so you don't review or merge mid-cycle.
+  - **Pre-dispatch repo check (`SKILL.md` §4) prevented a build failure:** Grepping callers before dispatching `#205` found an exhaustive `Record<AttentionItem["type"], ...>` in a UI component not listed in the original task plan; adding that file to the prompt's allowlist let Jules update both in lockstep.
+  - **`local_ci.sh`:** Tested end-to-end on both waves (`#194`–`#200` and `#205`–`#208`) in a throwaway worktree with a throwaway Docker `postgres:16-alpine` container across all 8 steps (`install`, `typecheck`, `lint`, `test`, `build`, `audit`, `secret_scan`, `scenarios`).
+  - **`merge_queue.sh`:** Tested end-to-end merging live PRs (`#205`–`#208`) against GitHub. Live testing exposed two real-world issues in worktree test execution that syntax checks missed: (1) a fresh git worktree has no `node_modules`, causing `TEST_CMD="npm test"` to fail unless linked from `$ROOT/node_modules`, and (2) on Windows Git Bash, `ln -s` without `winsymlinks` deep-copies `node_modules` (~30k files, ~85s) whereas `cmd.exe //c "mklink /J ..."` links it in ~5ms. Both are now built into `merge_queue.sh`, along with `SKIP_GH_CI=1` for repos where GitHub Actions is unavailable and `local_ci.sh` + `TEST_CMD` gate the merge.
 
 ## Installation
 

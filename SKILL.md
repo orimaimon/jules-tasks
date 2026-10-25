@@ -125,7 +125,7 @@ First time in this repository? Do [docs/repo-setup.md](docs/repo-setup.md) first
 
 **How to send it** (one issue or session per task; title `[Area] outcome`):
 - **Pasted into jules.google.com:** one fenced block per task in the plan file.
-- **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block if they are not in `AGENTS.md`. Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
+- **As a GitHub issue with the label that triggers Jules** (e.g. `jules`): the issue body is the prompt, followed by the project's standing "Ground rules" block if they are not in `AGENTS.md`. **Important:** inside the VM, Jules does not know its own GitHub issue number unless that literal number is in the prompt text (while Jules's GitHub bot automatically appends `Fixes #<issue>` at the bottom of the PR). If the prompt contains a literal placeholder like `Closes #<issue>`, Jules guesses a number (`Closes #123`, `Closes #12`) at the top of the PR body, which can close an unrelated open issue on merge. Either create the issue *without* the `jules` label first, replace `<issue>` with the real number, and then run `gh issue edit <n> --add-label jules`, or omit `Closes #<issue>` from the prompt when dispatching via issue label. Jules comments "on it" with a task link, then "Ready for a review! A PR has been created" with the PR number.
 - **From the terminal** with `scripts/jules_api.sh` (opens a PR automatically, can require plan approval, answers questions) or the `jules` CLI (no PR; review the patch first). Commands and the patch-review workflow: [docs/cli-and-api.md](docs/cli-and-api.md).
 - For a **risky task** (security path, shared file, a spec you are unsure of), require plan approval and check the plan's files and steps before approving. A wrong plan costs one message; a wrong PR costs a review and a re-dispatch.
 
@@ -140,6 +140,8 @@ First time in this repository? Do [docs/repo-setup.md](docs/repo-setup.md) first
 ## 5. Reviewing a Jules PR
 
 Titles and descriptions have overstated what was done and announced features whose commit was empty. Review the diff and the checks, in a clean scratch worktree.
+
+**Before starting the review, verify the session is idle (`Completed`), and always re-review if `headRefOid` changes.** When **CI Fixer** is on and any GitHub check fails (even a 2-second billing failure), Jules wakes the session back up (`In Progress` / `Planning`) ~10 seconds after opening the PR and pushes up to 3 retry commits—which can change or even self-revert the PR after your first look. `review_pr.sh` prints the reviewed short SHA and checks `jules remote list --session` for the session ID embedded in the branch name; if a new commit lands later, re-run `review_pr.sh` and inspect the new diff before merging.
 
 Copy this checklist into your reply and tick it off:
 
@@ -158,7 +160,7 @@ Review #<n>:
 **Step 1, the script.** It is read-only and only fetches the PR ref:
 
 ```bash
-bash <skill-dir>/scripts/review_pr.sh <PR#> [allowed-files.txt]
+bash <skill-dir>/scripts/review_pr.sh <PR#> [allowed-files.txt] [expected-issue#]
 ```
 
 It reports: an empty diff (and a self-reverting commit pair); files outside the allowlist; sensitive files (package/lock files, CI, requirements, launchers, `CLAUDE.md`, `AGENTS.md`); risky patterns in added lines (`npx`, `tsx`, `eslint-disable`, `: any`, skips, `.only`, `xfail`, unbounded loops, swallowed errors, a key in a URL, `verify=False`); tests that sleep for real or reach the network; the change in assert and test counts (JS/TS and Python); a missing or suspicious `Closes #N`; how far behind the base it is; and the conclusion of every CI job. If every job failed within seconds with no steps, read [docs/failure-modes.md](docs/failure-modes.md) before blaming the code.
