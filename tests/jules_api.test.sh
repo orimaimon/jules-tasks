@@ -72,7 +72,7 @@ export PATH="$BINDIR:$PATH"
 export CURL_LOGFILE="$LOGFILE"
 export CURL_FIXTURES_DIR="$FIXTURES_DIR"
 
-SCRIPT="scripts/jules_api.sh"
+SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/scripts/jules_api.sh"
 
 fail() {
   echo "FAIL: $*" >&2
