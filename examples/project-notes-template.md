@@ -23,7 +23,7 @@ Copy this file to `references/<project>.md` (which is gitignored in the public s
 
 ## CI jobs (all must pass before merging)
 - List the exact GitHub Actions job names and what they check.
-- How to run `scripts/local_ci.sh` with `references/<project>-ci-steps.sh` if Actions is unavailable.
+- How to run `scripts/local_ci.sh` if Actions is unavailable. Keep the steps file **in the project repository** (secret-free, e.g. `scripts/ci-steps.sh`, built from the CI workflow), not only here in `references/`: a cloud session can't read your machine, and every session should run the same gate.
 
 ## History & lessons learned
 - Log notable PR successes and failure modes discovered in this repository.

@@ -8,7 +8,8 @@
 #
 # Env: TEST_CMD (required; run from the worktree root, its exit code decides), BASE (default: the repo's default branch),
 #      WT (scratch worktree, default ../<repo>-mq), MERGE_FLAG (default --merge), KEEP_WT (default 0),
-#      SKIP_GH_CI (default 0; set to 1 only when GitHub Actions is unavailable and local_ci.sh + TEST_CMD are used instead).
+#      SKIP_GH_CI (default 0; set to 1 only when GitHub Actions is unavailable and local_ci.sh + TEST_CMD are used instead,
+#      with the user's explicit approval for this wave: SKILL.md section 6, "When GitHub Actions can't run").
 # Why serial: every merge makes the remaining PRs stale, and tests from one PR can fail on another PR's
 # code (seen: a "no email in the repo" test failing on a fixture added by a different PR).
 # A PR that already contains the latest base is not re-tested locally unless SKIP_GH_CI=1: its CI ran on exactly that head.
@@ -144,6 +145,14 @@ for n in "$@"; do
     echo "  (SKIP_GH_CI=1: relying on local TEST_CMD / local_ci.sh)"
   fi
   gh pr ready "$n" > /dev/null 2>&1 || true            # Jules leaves its PRs as drafts
-  gh pr merge "$n" $MERGE_FLAG --match-head-commit "$sha" && echo "merged #$n" || { echo "merge of #$n failed"; exit 1; }
+  gh pr merge "$n" $MERGE_FLAG --match-head-commit "$sha" || { echo "merge of #$n failed"; exit 1; }
+  # Proof that what landed is exactly what was tested: the base's tree must equal the tested head's tree
+  # (true for merge, squash and rebase, because the head already contains the base).
+  git fetch -q origin "$BASE"
+  if [ "$(git rev-parse "origin/$BASE^{tree}")" = "$(git rev-parse "$sha^{tree}")" ]; then
+    echo "merged #$n (tree check: $BASE == tested head ${sha:0:7})"
+  else
+    echo "merged #$n, but $BASE's tree differs from the tested head ${sha:0:7}: someone else pushed to $BASE? stopping"; exit 1
+  fi
 done
 echo "queue done"

@@ -5,6 +5,7 @@
 #
 # Usage:
 #   STEPS_FILE=<path> bash local_ci.sh <PR#> [PR# ...]
+#   (keep the steps file in the project repo, e.g. scripts/ci-steps.sh, so every session runs the same gate)
 #   (from inside the repository; BASE defaults to the repo's default branch)
 #
 # The steps file is plain bash. It must define:
