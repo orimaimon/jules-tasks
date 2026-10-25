@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Read-only mechanical review of a (Jules) PR. Usage:
-#   bash review_pr.sh <PR#> [allowed-files.txt]
+#   bash review_pr.sh <PR#> [allowed-files.txt] [expected-issue#]
 # allowed-files.txt: one path or glob per line (e.g. src/proxy.ts, tests/*.test.mjs, src/lib/**).
 # Requires: git, node, and gh (authenticated) for the PR metadata. Run from inside the repository. JS/TS and Python.
 # Without gh (e.g. a cloud session that has only git and GitHub MCP tools), or with NO_GH=1, it runs the
@@ -11,7 +11,9 @@ set -uo pipefail
 
 PR="${1:-}"
 ALLOW="${2:-}"
-if [ -z "$PR" ]; then echo "usage: $0 <PR#> [allowed-files.txt]"; exit 2; fi
+EXP_ISSUE="${3:-}"
+EXP_ISSUE="${EXP_ISSUE#\#}"
+if [ -z "$PR" ]; then echo "usage: $0 <PR#> [allowed-files.txt] [expected-issue#]"; exit 2; fi
 
 FAIL=0; WARN=0
 fail() { echo "  ❌ $*"; FAIL=$((FAIL+1)); }
@@ -26,18 +28,38 @@ if [ "$NO_GH" = "1" ]; then
   BASE="${BASE:-$(git symbolic-ref -q --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||')}"
   BASE="${BASE:-main}"
   echo "PR #$PR  (no gh: mechanical checks only; base: $BASE)"
-  echo "  ⚠️  NOT CHECKED (no gh): title, author, draft state, \"Closes #N\", CI. They did not pass; check them with your GitHub tools (pull_request_read get / get_check_runs)."
+  echo "  ⚠️  NOT CHECKED (no gh): title, author, draft state, \"Closes #N\"${EXP_ISSUE:+ (expected #$EXP_ISSUE)}, Jules session state, CI. They did not pass; check them with your GitHub tools (pull_request_read get / get_check_runs)."
   WARN=$((WARN+1))
 else
-  JSON="$(gh pr view "$PR" --json number,title,state,isDraft,baseRefName,headRefName,additions,deletions,changedFiles,files,statusCheckRollup,author,closingIssuesReferences 2>&1)" \
+  JSON="$(gh pr view "$PR" --json number,title,body,state,isDraft,baseRefName,headRefName,headRefOid,additions,deletions,changedFiles,files,statusCheckRollup,author,closingIssuesReferences 2>&1)" \
     || { echo "gh pr view failed: $JSON (NO_GH=1 runs the diff checks without it)"; exit 2; }
   BASE="$(jget 'j.baseRefName')"
+  HEAD_BRANCH="$(jget 'j.headRefName')"
+  HEAD_SHA="$(jget '(j.headRefOid||"").slice(0,7)')"
   echo "PR #$PR: $(jget 'j.title')"
-  echo "  author: $(jget 'j.author.login')  state: $(jget 'j.state')  draft: $(jget 'j.isDraft')  base: $BASE  head: $(jget 'j.headRefName')"
-  # Jules PRs often omit "Closes #N", or name the wrong issue (one named an unrelated issue number).
+  echo "  author: $(jget 'j.author.login')  state: $(jget 'j.state')  draft: $(jget 'j.isDraft')  base: $BASE  head: $HEAD_BRANCH ($HEAD_SHA)"
+  # Check if a Jules session embedded in the branch name is still active (e.g. CI Fixer running):
+  SID="$(echo "$HEAD_BRANCH" | grep -oE '[0-9]{15,22}' | tail -n1 || true)"
+  if [ -n "$SID" ] && command -v jules >/dev/null 2>&1; then
+    SLINE="$(jules remote list --session 2>/dev/null | grep -F "$SID" || true)"
+    if echo "$SLINE" | grep -qE '(In Progress|Planning|Queued)'; then
+      warn "Jules session $SID is still active ($(echo "$SLINE" | awk '{print $(NF-1), $NF}')) — CI Fixer may push new commits; re-review after it finishes"
+    fi
+  fi
+  # Jules PRs often omit "Closes #N", or hallucinate a placeholder "Closes #123" at the top while the bot adds "Fixes #189" at the bottom.
   CLOSES="$(jget '(j.closingIssuesReferences||[]).map(i=>"#"+i.number).join(" ")')"
-  if [ -z "$CLOSES" ]; then warn 'closes no issue: add "Closes #N" (the dispatched issue) to the PR body'
-  else echo "  closes: $CLOSES  <- check it is the dispatched issue"; fi
+  CCOUNT_ISSUES="$(jget '(j.closingIssuesReferences||[]).length')"
+  BODY_CLOSES="$(jget '((j.body||"").match(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#[0-9A-Za-z_-]+/gi)||[]).join(", ")')"
+  if [ -z "$CLOSES" ]; then
+    warn "closes no issue: add \"Closes #N\" (the dispatched issue) to the PR body${BODY_CLOSES:+ (body has: $BODY_CLOSES)}"
+  elif [ "${CCOUNT_ISSUES:-0}" -gt 1 ]; then
+    warn "closes multiple issues ($CLOSES): check for a hallucinated 'Closes #N' alongside the real issue${BODY_CLOSES:+ (body has: $BODY_CLOSES)}"
+  else
+    echo "  closes: $CLOSES  <- check it is the dispatched issue${BODY_CLOSES:+ (body: $BODY_CLOSES)}"
+  fi
+  if [ -n "$EXP_ISSUE" ] && [ "$CLOSES" != "#$EXP_ISSUE" ]; then
+    fail "expected PR to close only #$EXP_ISSUE, but closingIssuesReferences is '${CLOSES:-none}'"
+  fi
 fi
 
 REF="refs/remotes/review/pr-$PR"
@@ -133,14 +155,14 @@ DELTESTS="$(git diff --name-only --diff-filter=D "$MB" "$REF" -- "${TESTSPEC[@]}
 [ -n "$DELTESTS" ] && fail "test files deleted: $(echo $DELTESTS)"
 
 echo "== 4. Assert and test counts (test files)"
-# JS/TS: assert(...), assert.x(...), expect(...). Python: lines that start with "assert". Tests: def test_ / it( / test(.
+# JS/TS: assert(...), assert.x(...), expect(...). Python: lines that start with "assert". Tests: def test_ / it( / test( / t.test(.
 count()  { git grep -hE "assert(\.[a-zA-Z]+)?\(|expect\(|^[[:space:]]*assert[[:space:](]" "$1" -- "${TESTSPEC[@]}" 2>/dev/null | wc -l | tr -d ' '; }
-tcount() { git grep -hE "^[[:space:]]*(async )?def test_|^[[:space:]]*(it|test)(\.only)?\(" "$1" -- "${TESTSPEC[@]}" 2>/dev/null | wc -l | tr -d ' '; }
+tcount() { git grep -hE "^[[:space:]]*(async )?def test_|^[[:space:]]*((await[[:space:]]+)?[a-zA-Z_$][a-zA-Z0-9_$]*\.)?(it|test)(\.only)?\(" "$1" -- "${TESTSPEC[@]}" 2>/dev/null | wc -l | tr -d ' '; }
 B="$(count "$MB")"; H="$(count "$REF")"; TB="$(tcount "$MB")"; TH="$(tcount "$REF")"
 if [ "$H" -lt "$B" ]; then fail "asserts dropped: $B -> $H"; else ok "asserts $B -> $H"; fi
 if [ "$TH" -lt "$TB" ]; then fail "tests dropped: $TB -> $TH"; else ok "tests $TB -> $TH"; fi
 CODE="$(echo "$FILES" | grep -vE '(^|/)(tests?|__tests__)/|\.(test|spec)\.|(^|/)test_[^/]*\.py$|_test\.py$|\.(md|html|json|csv|txt)$|^$' || true)"
-[ "$TH" -eq "$TB" ] && [ -n "$CODE" ] && warn "code changed but no new test"
+[ "$TH" -eq "$TB" ] && [ "$H" -le "$B" ] && [ -n "$CODE" ] && warn "code changed but no new test or assert"
 
 echo "== 5. Freshness"
 BEHIND="$(git rev-list --count "$REF..refs/remotes/review/base")"
