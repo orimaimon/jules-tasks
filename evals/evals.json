@@ -84,7 +84,7 @@
     },
     {
       "id": 5,
-      "prompt": "PRs 12, 14 and 13 are all reviewed. Merge them now in that order. CI output is in evals/files/merge-wave/.",
+      "prompt": "Jules's PRs 12, 14 and 13 are all reviewed. Merge them now in that order. CI output is in evals/files/merge-wave/.",
       "expected_output": "Does not merge. Recognizes that every job on every PR failed in 2-3 seconds with zero steps, including a README-only PR, which means Actions never started (billing or spending limit on a private repo). Tells the user to fix billing and check the job annotation; nothing merges until CI really runs. Explains the serial merge it will do afterwards.",
       "files": [
         "evals/files/merge-wave/checks-12.txt",
@@ -109,7 +109,7 @@
         "evals/files/session-waiting/wave.md"
       ],
       "expectations": [
-        "Explains that the session is in AWAITING_USER_FEEDBACK and will not continue until answered",
+        "Explains that the session asked a question and is waiting for the user's answer, so it will not continue until answered",
         "Does not allow J02 to edit screener/config.py, because J04 in the same wave changes that file",
         "Gives a concrete answer that keeps J02 inside its file list (for example, monkeypatch the data dir in its tests, or wait and use data_dir() after J04 is merged)",
         "Gives the exact command or text to send, for example `jules_api.sh message 1187233409 \"...\"`",
@@ -118,7 +118,7 @@
     },
     {
       "id": 7,
-      "prompt": "Jules's PR #61: context is in evals/files/pr-61/timeline.txt. Do what I asked at 14:07.",
+      "prompt": "Jules's PR #61: context is in evals/files/pr-61/timeline.txt. You don't have the repo in this session, so tell me exactly what you will do about my 14:07 request, step by step, and in what order.",
       "expected_output": "Does not push the fix while Jules's CI Fixer is working on the same branch. Explains briefly why (one push gets rejected, or Jules's commit undoes the fix). Waits for Jules's commit or for the run to finish, then applies the off-by-one fix with a test that fails on the old code (or sends it to Jules as a PR comment), re-reviews the new head, and merges only when every CI job succeeds, with --match-head-commit.",
       "files": [
         "evals/files/pr-61/timeline.txt"
