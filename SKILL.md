@@ -40,7 +40,7 @@ Send to **Jules** when all of these hold:
 - It needs no interactive decision mid-way (no `db push` that needs approval, no "ask me before X").
 - It can be verified by commands Jules can run itself (tests, tsc, lint, build, a scenario script) or by reading the diff.
 
-Good Jules work: **a new module with its tests in new files** (the most reliable kind: a provider, a pure calculation, a data layer with a clear API), lint and dead-code cleanup, adding or tightening tests, docs, CI configuration, small isolated bug fixes with a clear root cause, mechanical refactors in one module, read-only audits that end in a report.
+Good Jules work: **a new module with its tests in new files** (the most reliable kind: a provider, a pure calculation, a data layer with a clear API), lint and dead-code cleanup, adding or tightening tests, docs, CI configuration, small isolated bug fixes with a clear root cause, mechanical refactors in one module, read-only audits that end in a report (one file or one question per audit: a single audit over a whole set of docs found three issues and missed a contradiction).
 
 Keep it **local** (a big agent in a clean window) when the task:
 - edits a **big file that many features share** (a 1,400-line UI file, a router): split the file first, locally, then give Jules one page;
