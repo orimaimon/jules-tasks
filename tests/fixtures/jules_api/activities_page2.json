@@ -1,0 +1,29 @@
+{
+  "activities": [
+    {
+      "createTime": "2025-01-01T10:02:00Z",
+      "originator": "agent",
+      "progressUpdated": {
+        "title": "Running bash command"
+      },
+      "artifacts": [
+        {
+          "bashOutput": {
+            "command": "echo hello",
+            "output": "hello\n",
+            "exitCode": 0
+          }
+        },
+        {
+          "changeSet": {
+            "gitPatch": {
+              "unidiffPatch": "diff --git a/file.txt b/file.txt\nnew file mode 100644\nindex 0000000..e69de29\n--- /dev/null\n+++ b/file.txt\n@@ -0,0 +10,1 @@\n+sample patch\n",
+              "baseCommitId": "basecommit123",
+              "suggestedCommitMessage": "Add sample file\n\nDetailed message"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
